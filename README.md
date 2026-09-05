@@ -32,9 +32,17 @@ re-ranks itself, applying writes an application, the inbox genuinely locks and u
 
 ## Run it
 
+On Windows, `start.bat` in the repo root brings up both apps, each in its own window, and
+`stop.bat` shuts them both down. First time only, install dependencies in each app:
+
+```bash
+npm install --prefix student-app && npm install --prefix company-dashboard
+```
+
+Or run either one on its own:
+
 ```bash
 cd student-app
-npm install
 npm run dev
 ```
 
@@ -48,11 +56,10 @@ company's opening message, unlocks the inbox and fires the celebration. Without 
 payoff screens are unreachable, because nothing else in the student app is allowed to
 create a selection.
 
-To run the company dashboard instead:
+The company dashboard:
 
 ```bash
 cd company-dashboard
-npm install
 npm run dev
 ```
 
