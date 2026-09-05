@@ -21,7 +21,7 @@ the product.
 | Student app designs | Done — [Figma Make](https://dun-rival-31434366.figma.site) |
 | Company designs | Dashboard screen only — [Figma Make](https://chisel-thumb-04330911.figma.site) |
 | **Student app (code)** | **Built and running — [`student-app/`](student-app)** |
-| Company dashboard (code) | Not started |
+| **Company dashboard (code)** | **Built and running (mock data) — [`company-dashboard/`](company-dashboard)** |
 | Backend / database | Not started |
 
 The student app is a working React app, not a click-through. State is real: the deck
@@ -46,6 +46,16 @@ for the company dashboard: it marks your most recent application as selected, wr
 company's opening message, unlocks the inbox and fires the celebration. Without it the
 payoff screens are unreachable, because nothing else in the student app is allowed to
 create a selection.
+
+To run the company dashboard instead:
+
+```bash
+cd company-dashboard
+npm install
+npm run dev
+```
+
+Open http://localhost:8443. See [`company-dashboard/README.md`](company-dashboard/README.md).
 
 ---
 
@@ -89,6 +99,11 @@ student-app/            the working student app
   src/store.tsx         reducer, navigation stack, selectors
   src/components/       PhoneFrame, BottomNav, Icons, ui primitives
   src/screens/          one file per flow
+company-dashboard/      the working company dashboard (own mock data, not yet wired to
+                         the student app's fit engine — see its README)
+  src/data/mock.ts       companies, jobs, candidates — mock data, no UI
+  src/pages/             one file per screen (Dashboard, Applicants, Pipeline, ...)
+  src/components/        cards, drawers, modals shared across pages
 ```
 
 Read [`CLAUDE.md`](CLAUDE.md) first — especially **§3 Hard rules** and **§5 The fit score**.
@@ -99,8 +114,11 @@ Those are the decisions everything else follows from.
 ## Next up
 
 1. **Persistence** — state is in memory, so a reload resets the demo.
-2. **Company web dashboard** — currently one screen in Figma, nothing in code. The shared
-   pieces (fit engine, types, mock data) are factored so it can consume them directly.
+2. **Wire the company dashboard to the shared fit engine** — [`company-dashboard/`](company-dashboard)
+   is built and running, but on its own mock data with hand-set fit scores. It needs to
+   consume `student-app/src/lib/fit.ts` and the same student/job types so a score moves
+   in sync across both apps. See [`company-dashboard/README.md`](company-dashboard/README.md)
+   for the full list of gaps.
 3. **Backend** — schema, auth, and the selection gate. See `CLAUDE.md` §9. The rule to
    enforce at the database level: a conversation cannot exist without a `selections` row.
 
