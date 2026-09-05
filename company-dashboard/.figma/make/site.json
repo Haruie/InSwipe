@@ -1,0 +1,10 @@
+{
+  "description": "Streamline your internship hiring process with an AI-powered dashboard that ranks applicants, manages job postings, and enhances candidate communication.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
