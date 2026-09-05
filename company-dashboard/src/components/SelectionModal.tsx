@@ -1,23 +1,38 @@
 import { useState } from "react";
-import type { Candidate } from "../data/mock";
-import { COMPANY, RECRUITER } from "../data/mock";
+import type { Candidate } from "../data/candidates";
+import { useDashboard } from "../data/store";
 import FitScoreRing from "./FitScoreRing";
 
 interface Props {
   candidate: Candidate;
-  onConfirm: () => void;
+  jobTitle: string;
+  companyName: string;
+  /**
+   * Selecting and sending the first message are one write, not two — the database
+   * creates the selection, the conversation and this message together. Passing no
+   * message means "use the default opener".
+   */
+  onConfirm: (message?: string) => void;
   onCancel: () => void;
 }
 
-export default function SelectionModal({ candidate: c, onConfirm, onCancel }: Props) {
+export default function SelectionModal({ candidate: c, jobTitle, companyName, onConfirm, onCancel }: Props) {
+  const { company } = useDashboard();
   const [step, setStep] = useState<"confirm" | "success" | "message">("confirm");
+  const [sending, setSending] = useState(false);
   const [message, setMessage] = useState(
-    `Hi ${c.name.split(" ")[0]}! Congratulations — you've been selected for the Frontend Engineering Intern role at ${COMPANY.name}.\n\nWe were really impressed by your ${c.fits[0]} and ${c.fits[1]} work${c.projects[0] ? `, especially ${c.projects[0].name}` : ""}. I'd love to set up an intro call to walk you through the team and next steps.\n\nAre you available this week?`
+    `Hi ${c.name.split(" ")[0]}! Congratulations — you've been selected for the ${jobTitle} role at ${companyName}.\n\nWe were really impressed by your ${c.fits[0]} and ${c.fits[1]} work${c.projects[0] ? `, especially ${c.projects[0].name}` : ""}. I'd love to set up an intro call to walk you through the team and next steps.\n\nAre you available this week?`
   );
 
   const handleConfirm = () => {
     setStep("success");
     setTimeout(() => setStep("message"), 2200);
+  };
+
+  const send = (body?: string) => {
+    if (sending) return;
+    setSending(true);
+    onConfirm(body);
   };
 
   return (
@@ -37,7 +52,7 @@ export default function SelectionModal({ candidate: c, onConfirm, onCancel }: Pr
             </div>
             <h2 className="text-[18px] font-semibold mb-1" style={{ color: "#0F1117" }}>Select {c.name}?</h2>
             <p className="text-[13px] leading-relaxed" style={{ color: "#6B7280" }}>
-              You're about to select this candidate for the <strong style={{ color: "#374151" }}>Frontend Engineering Intern</strong> role. You'll send them a message next.
+              You're about to select this candidate for the <strong style={{ color: "#374151" }}>{jobTitle}</strong> role. This unlocks their inbox, and you'll send them the first message next.
             </p>
           </div>
 
@@ -68,7 +83,7 @@ export default function SelectionModal({ candidate: c, onConfirm, onCancel }: Pr
         <div className="flex flex-col items-center gap-6 text-center">
           <div className="relative flex items-center" style={{ gap: 48 }}>
             <div className="anim-success w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold text-white" style={{ background: "#4F46E5", boxShadow: "0 8px 24px rgba(79,70,229,0.28)", animationDelay: "0s" }}>
-              T
+              {company.initial}
             </div>
             <div className="anim-fade-in" style={{ animationDelay: "0.4s" }}>
               <svg width="48" height="8" viewBox="0 0 48 8">
@@ -111,7 +126,7 @@ export default function SelectionModal({ candidate: c, onConfirm, onCancel }: Pr
           <div className="rounded-2xl p-4 mb-4" style={{ background: "#F7F7FB", border: "1px solid #E8E8EF" }}>
             <div className="text-[12px] mb-2 flex items-center justify-between" style={{ color: "#9CA3AF" }}>
               <span>To: {c.name}</span>
-              <span>Frontend Engineering Intern</span>
+              <span>{jobTitle}</span>
             </div>
             <textarea
               value={message}
@@ -123,11 +138,12 @@ export default function SelectionModal({ candidate: c, onConfirm, onCancel }: Pr
           </div>
 
           <div className="flex gap-3">
-            <button onClick={onCancel} className="btn-press px-5 py-3 rounded-xl text-[13px] font-medium border" style={{ background: "#F7F7FB", borderColor: "#E8E8EF", color: "#6B7280" }}>
-              Skip for now
+            <button onClick={() => send()} disabled={sending} className="btn-press px-5 py-3 rounded-xl text-[13px] font-medium border" style={{ background: "#F7F7FB", borderColor: "#E8E8EF", color: "#6B7280" }}>
+              Send default
             </button>
             <button
-              onClick={onConfirm}
+              onClick={() => send(message)}
+              disabled={sending}
               className="btn-press flex-1 py-3 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-2"
               style={{ background: "#4F46E5", boxShadow: "0 4px 12px rgba(79,70,229,0.28)" }}
             >

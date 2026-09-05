@@ -1,10 +1,10 @@
 import { useFit, useStore } from '../store';
-import { getJob } from '../data/jobs';
-import { getCompany } from '../data/companies';
+import { getCompany, getJob } from '../data/catalog';
 import { heldSkills } from '../lib/fit';
 import { HomeIndicator, StatusBar } from '../components/PhoneFrame';
 import {
   Button,
+  CompanyCover,
   CompanyLogo,
   FitBar,
   FitRing,
@@ -45,7 +45,7 @@ export function JobDetail() {
 
       <div className="flex-1 overflow-y-auto no-scrollbar">
         {/* hero */}
-        <div className="relative h-[190px] shrink-0" style={{ background: company.gradient }}>
+        <CompanyCover company={company} className="h-[190px] shrink-0">
           <div className="absolute inset-x-0 top-[52px] flex items-center justify-between px-5">
             <button
               onClick={() => dispatch({ type: 'back' })}
@@ -63,7 +63,7 @@ export function JobDetail() {
               {saved ? <IconStarFilled size={18} /> : <IconStar size={18} />}
             </button>
           </div>
-        </div>
+        </CompanyCover>
 
         {/* body */}
         <div className="relative -mt-6 rounded-t-[28px] bg-canvas px-5 pb-6 pt-5">

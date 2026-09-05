@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '../store';
-import { getJob } from '../data/jobs';
-import { getCompany } from '../data/companies';
+import { getCompany, getJob } from '../data/catalog';
 import { computeFit } from '../lib/fit';
 import { Button, CompanyLogo, FitRing, Modal } from '../components/ui';
 import { IconCheck } from '../components/Icons';
@@ -155,30 +154,5 @@ export function SelectionOverlay() {
         </div>
       </div>
     </div>
-  );
-}
-
-/* ---------------------------- Demo control ---------------------------- */
-
-/**
- * Stands in for the company dashboard until the two products share a backend.
- * This is the only thing in the app allowed to create a selection.
- */
-export function DemoControl() {
-  const { state, dispatch } = useStore();
-  const onboarding = ['splash', 'intro', 'auth', 'fork', 'upload', 'parsing', 'review'].includes(
-    state.screen,
-  );
-  if (onboarding) return null;
-
-  return (
-    <button
-      onClick={() => dispatch({ type: 'simulateSelection' })}
-      className="press fixed bottom-4 right-4 z-[100] flex items-center gap-2 rounded-full bg-ink-900/90 px-4 py-2.5 text-[12px] font-semibold text-white shadow-raised backdrop-blur"
-      title="Simulates the company dashboard selecting you"
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-fit-500" />
-      Demo: simulate selection
-    </button>
   );
 }

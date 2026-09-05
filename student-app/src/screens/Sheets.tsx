@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useFit, useStore } from '../store';
-import { getJob } from '../data/jobs';
-import { getCompany } from '../data/companies';
+import { getCompany, getJob } from '../data/catalog';
 import { draftNote } from '../lib/note';
 import {
   AiLabel,

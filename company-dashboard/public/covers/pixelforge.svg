@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400" role="img" aria-label="PixelForge">
+  <title>PixelForge</title>
+  <defs>
+    <linearGradient id="bg-pixelforge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="60%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#C4B5FD"/>
+    </linearGradient>
+    <radialGradient id="glow-pixelforge" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid-pixelforge" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0v40" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="800" height="400" fill="url(#bg-pixelforge)"/>
+  <rect width="800" height="400" fill="url(#grid-pixelforge)"/>
+  <ellipse cx="184" cy="115" rx="330" ry="250" fill="url(#glow-pixelforge)"/>
+
+  <g transform="translate(-147 -1) rotate(-3 420 200)"
+     color="#ffffff" fill="none" stroke="currentColor" stroke-width="2.5"
+     stroke-linejoin="round" opacity="0.34">
+<path d="M444 300c46-142 224-142 270-8"/>
+    <path d="M444 300l-6-84M714 292l52-58" stroke-dasharray="10 10"/>
+    <rect x="428" y="288" width="26" height="26" rx="4"/>
+    <rect x="424" y="202" width="26" height="26" rx="4"/>
+    <rect x="702" y="280" width="26" height="26" rx="4"/>
+    <rect x="754" y="222" width="26" height="26" rx="4"/>
+    <circle cx="580" cy="228" r="9" fill="currentColor" stroke="none"/>
+  </g>
+
+  <path d="M0 400L800 248V400z" fill="#000000" fill-opacity="0.10"/>
+</svg>

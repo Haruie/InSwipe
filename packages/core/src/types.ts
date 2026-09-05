@@ -81,6 +81,11 @@ export interface Company {
   initial: string;
   color: string;
   gradient: string;
+  /**
+   * The image a job card shows for this company. The gradient stays underneath it, so
+   * a company without a cover — or one whose file fails to load — still reads as itself.
+   */
+  coverUrl: string;
   verified: boolean;
   tagline: string;
   about: string;
@@ -166,7 +171,18 @@ export interface Message {
   dayLabel?: string;
 }
 
+/**
+ * A thread between one company and one student about one job. It cannot exist without
+ * a selection (CLAUDE.md section 3, rule 2), which is why `selectionId` is not optional:
+ * the row it points at is the thing that unlocked this conversation.
+ *
+ * `unread` is read from the point of view of whoever loaded it — the student counts
+ * messages from the company, the company counts replies from the candidate.
+ */
 export interface Conversation {
+  id: string;
+  selectionId: string;
+  studentId: string;
   jobId: string;
   unread: number;
   lastLabel: string;

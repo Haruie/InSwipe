@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { COMPANY } from "../data/mock";
+import type { Company } from "@inswipe/core";
+import { useDashboard } from "../data/store";
 
 interface Details {
   description: string;
@@ -12,17 +13,17 @@ interface Details {
   location: string;
 }
 
-const INITIAL_DETAILS: Details = {
-  description:
-    "TechNova builds the infrastructure layer that powers next-generation AI applications. Our platform enables Indian and global developers to ship AI features 10× faster with built-in reliability, security, and scale.",
-  website: "technova.ai",
-  linkedin: "linkedin.com/company/technova",
-  founded: "2021, Bangalore",
+/** Seeded from the company row; the fields Supabase does not carry stay editable here. */
+const detailsFrom = (company: Company): Details => ({
+  description: company.about,
+  website: company.website,
+  linkedin: `linkedin.com/company/${company.id}`,
+  founded: `${company.founded}, ${company.location}`,
   stage: "Series B",
-  industry: COMPANY.industry,
-  size: COMPANY.size,
-  location: COMPANY.location,
-};
+  industry: company.industry,
+  size: company.size,
+  location: company.location,
+});
 
 const inputSty = { background: "#F7F7FB", border: "1.5px solid #E8E8EF", borderRadius: 10, padding: "9px 12px", fontSize: 13, color: "#0F1117", width: "100%", boxSizing: "border-box" as const };
 
@@ -40,9 +41,11 @@ function Field({ label, value, onChange, multiline }: { label: string; value: st
 }
 
 export default function CompanyProfile() {
+  const { company } = useDashboard();
+
   const [editing, setEditing] = useState(false);
-  const [details, setDetails] = useState<Details>(INITIAL_DETAILS);
-  const [draft, setDraft] = useState<Details>(INITIAL_DETAILS);
+  const [details, setDetails] = useState<Details>(() => detailsFrom(company));
+  const [draft, setDraft] = useState<Details>(() => detailsFrom(company));
   const [justSaved, setJustSaved] = useState(false);
 
   const startEditing = () => { setDraft(details); setEditing(true); };
@@ -89,7 +92,7 @@ export default function CompanyProfile() {
         <div className="flex items-start gap-6">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white flex-shrink-0" style={{ background: "#4F46E5" }}>T</div>
           <div className="flex-1 space-y-3">
-            <div className="text-[18px] font-semibold" style={{ color: "#0F1117" }}>{COMPANY.name}</div>
+            <div className="text-[18px] font-semibold" style={{ color: "#0F1117" }}>{company.name}</div>
             {editing ? (
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Industry" value={draft.industry} onChange={set("industry")} />

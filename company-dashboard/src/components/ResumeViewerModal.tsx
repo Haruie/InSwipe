@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { Candidate, Job } from "../data/mock";
+import type { Candidate } from "../data/candidates";
+import type { JobPosting as Job } from "../data/jobs";
 
 interface Props {
   candidate: Candidate;

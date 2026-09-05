@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import type { Page } from "../App";
-import type { Candidate, Job } from "../data/mock";
-import { ATTENTION_ITEMS, ANALYTICS_DATA, fitBand } from "../data/mock";
+import { fitBand } from "@inswipe/core";
+import type { Candidate } from "../data/candidates";
+import type { JobPosting as Job } from "../data/jobs";
+import { useDashboard } from "../data/store";
 
 interface Props {
   onNavigate: (page: Page) => void;
   candidates: Candidate[];
   jobs: Job[];
+  onOpenConversation: (conversationId: string) => void;
+  onSelectJob: (jobId: string) => void;
 }
 
 function StatCard({ label, value, sub, accent, delay, onClick }: { label: string; value: number; sub: string; accent?: string; delay: number; onClick?: () => void }) {
@@ -55,7 +59,8 @@ function FunnelBar({ stage, count, max, delay }: { stage: string; count: number;
   );
 }
 
-export default function Dashboard({ onNavigate, candidates, jobs }: Props) {
+export default function Dashboard({ onNavigate, candidates, jobs, onOpenConversation, onSelectJob }: Props) {
+  const { attention, analytics } = useDashboard();
   const activeJobs = jobs.filter(j => j.status === "Active").length;
   const newApplicants = candidates.filter(c => c.stage === "Applied").length;
   const awaitingReview = candidates.filter(c => c.stage === "Applied" || c.stage === "Reviewed").length;
@@ -66,7 +71,7 @@ export default function Dashboard({ onNavigate, candidates, jobs }: Props) {
     <div className="p-8 max-w-[1100px] mx-auto space-y-7">
       {/* Stats */}
       <div className="grid grid-cols-4 gap-5">
-        <StatCard label="Active Jobs"           value={activeJobs}       sub="2 accepting applications"   delay={0}    onClick={() => onNavigate("jobs")} />
+        <StatCard label="Active Jobs"           value={activeJobs}       sub={`${jobs.filter(j => j.status === "Active").length} accepting applications`}   delay={0}    onClick={() => onNavigate("jobs")} />
         <StatCard label="New Applicants"         value={newApplicants}    sub="Since last visit"           accent="#4F46E5" delay={0.08} onClick={() => onNavigate("applicants")} />
         <StatCard label="Awaiting Review"        value={awaitingReview}   sub="Unreviewed candidates"      accent="#EA580C" delay={0.16} onClick={() => onNavigate("applicants")} />
         <StatCard label="Active Conversations"   value={activeConvs}      sub="Open threads"               accent="#16A34A" delay={0.24} onClick={() => onNavigate("inbox")} />
@@ -80,11 +85,11 @@ export default function Dashboard({ onNavigate, candidates, jobs }: Props) {
             <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #E8E8EF" }}>
               <h2 className="text-[14px] font-semibold" style={{ color: "#0F1117" }}>Needs Your Attention</h2>
               <span className="text-[12px] px-2.5 py-1 rounded-full font-medium border" style={{ background: "#FFFFFF", borderColor: "#DC2626", color: "#DC2626" }}>
-                {ATTENTION_ITEMS.length} items
+                {attention.length} items
               </span>
             </div>
             <div>
-              {ATTENTION_ITEMS.map(item => (
+              {attention.map(item => (
                 <div key={item.id} className="px-6 py-4 flex items-center gap-4 transition-colors" style={{ borderBottom: "1px solid #E8E8EF" }}
                   onMouseEnter={e => (e.currentTarget.style.background = "#F7F7FB")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
@@ -100,7 +105,11 @@ export default function Dashboard({ onNavigate, candidates, jobs }: Props) {
                     <div className="text-[13px]" style={{ color: "#0F1117" }}>{item.message}</div>
                   </div>
                   <button
-                    onClick={() => onNavigate(item.type === "message" ? "inbox" : item.type === "applicant" ? "applicants" : "jobs")}
+                    onClick={() => {
+                      if (item.type === "message" && item.conversationId) return onOpenConversation(item.conversationId);
+                      if (item.jobId) onSelectJob(item.jobId);
+                      onNavigate(item.type === "applicant" ? "applicants" : "jobs");
+                    }}
                     className="btn-press text-[12px] px-3 py-1.5 rounded-lg font-medium flex-shrink-0"
                     style={{ background: "#EEF0FF", color: "#4F46E5" }}
                   >
@@ -118,7 +127,7 @@ export default function Dashboard({ onNavigate, candidates, jobs }: Props) {
               <p className="text-[12px] mt-0.5" style={{ color: "#9CA3AF" }}>All active roles combined</p>
             </div>
             <div className="px-6 py-5 space-y-3">
-              {ANALYTICS_DATA.funnel.map((item, i) => (
+              {analytics.funnel.map((item, i) => (
                 <FunnelBar key={item.stage} stage={item.stage} count={item.count} max={43} delay={i} />
               ))}
             </div>

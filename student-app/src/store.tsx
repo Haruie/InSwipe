@@ -1,16 +1,30 @@
-import React, { createContext, useContext, useMemo, useReducer } from 'react';
-import { deckJobIds, getJob, jobs } from './data/jobs';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from 'react';
 import {
-  initialStudent,
-  seedApplications,
-  seedConversations,
-  seedNotifications,
-  seedSaved,
-} from './data/student';
-import { getCompany } from './data/companies';
+  applyToJob,
+  loadStudentWorkspace,
+  markConversationRead,
+  markNotificationsRead,
+  passJob,
+  resetDemoData,
+  sendMessage,
+  setSaved,
+  type ApplicationRecord,
+  type NotificationRecord,
+  type StudentWorkspace,
+} from '@inswipe/data';
+import type { Conversation, Project, Student } from '@inswipe/core';
+import { catalog, getJob } from './data/catalog';
 import { computeFit } from './lib/fit';
-import { openingMessage } from './lib/note';
-import type { Application, Conversation, Notification, Project, Student } from './data/types';
+import { DEMO_STUDENT_ID, db } from './lib/db';
+import { clearSession, readSession, writeSession } from './lib/session';
 
 export type Screen =
   | 'splash'
@@ -52,9 +66,9 @@ export interface State {
   deck: string[];
   passed: string[];
   saved: string[];
-  applications: Application[];
+  applications: ApplicationRecord[];
   conversations: Conversation[];
-  notifications: Notification[];
+  notifications: NotificationRecord[];
   inboxUnlocked: boolean;
   detailJobId: string | null;
   companyId: string | null;
@@ -70,34 +84,43 @@ export interface State {
   filters: Filters;
 }
 
-const initialState: State = {
-  screen: 'splash',
-  stack: [],
-  dir: 'f',
-  tab: 'discover',
-  introIndex: 0,
-  authMode: 'signup',
-  student: initialStudent,
-  deck: deckJobIds,
-  passed: [],
-  saved: seedSaved,
-  applications: seedApplications,
-  conversations: seedConversations,
-  notifications: seedNotifications,
-  inboxUnlocked: false,
-  detailJobId: null,
-  companyId: null,
-  appDetailJobId: null,
-  chatJobId: null,
-  sheet: null,
-  noteJobId: null,
-  selection: null,
-  appliedModal: null,
-  toast: null,
-  profileEditing: false,
-  learn: {},
-  filters: { minFit: 0, workMode: 'Any' },
-};
+/**
+ * Everything the student has done lives in Supabase. This turns one load of it into the
+ * screen state, and `sync` below folds later loads back in the same way.
+ */
+function stateFromWorkspace(workspace: StudentWorkspace): State {
+  // A reload should not replay onboarding. If the last session was signed in, come back
+  // to the tab it was left on.
+  const session = readSession();
+  return {
+    screen: session ? 'main' : 'splash',
+    stack: [],
+    dir: 'f',
+    tab: session?.tab ?? 'discover',
+    introIndex: 0,
+    authMode: 'signup',
+    student: workspace.student,
+    deck: workspace.deckJobIds,
+    passed: workspace.passed,
+    saved: workspace.saved,
+    applications: workspace.applications,
+    conversations: workspace.conversations,
+    notifications: workspace.notifications,
+    inboxUnlocked: workspace.inboxUnlocked,
+    detailJobId: null,
+    companyId: null,
+    appDetailJobId: null,
+    chatJobId: null,
+    sheet: null,
+    noteJobId: null,
+    selection: null,
+    appliedModal: null,
+    toast: null,
+    profileEditing: false,
+    learn: {},
+    filters: { minFit: 0, workMode: 'Any' },
+  };
+}
 
 type Action =
   | { type: 'nav'; screen: Screen }
@@ -108,16 +131,16 @@ type Action =
   | { type: 'toggleSave'; jobId: string }
   | { type: 'openNote'; jobId: string }
   | { type: 'apply'; jobId: string; note?: string }
-  | { type: 'simulateSelection' }
   | { type: 'send'; jobId: string; text: string }
   | { type: 'readConversation'; jobId: string }
+  | { type: 'sync'; workspace: StudentWorkspace }
   | { type: 'setLearn'; skill: string; status: LearnStatus }
   | { type: 'updateStudent'; patch: Partial<Student> }
   | { type: 'toggleSkill'; skill: string }
   | { type: 'addProject'; project: Project }
   | { type: 'startManualProfile' }
   | { type: 'dismissGap'; skill: string }
-  | { type: 'reset' };
+  | { type: 'logout'; workspace: StudentWorkspace };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -162,15 +185,22 @@ function reducer(state: State, action: Action): State {
     case 'openNote':
       return { ...state, sheet: 'note', noteJobId: action.jobId };
 
+    /**
+     * The optimistic half of applying. The row itself is written by `apply_to_job()`;
+     * the next sync replaces this placeholder with what the database actually stored.
+     */
     case 'apply': {
       if (state.applications.some((a) => a.jobId === action.jobId)) {
         return { ...state, sheet: null, noteJobId: null };
       }
       const order = Math.max(0, ...state.applications.map((a) => a.appliedOrder)) + 1;
       const fit = computeFit(state.student, getJob(action.jobId));
-      const application: Application = {
+      const application: ApplicationRecord = {
+        id: `pending-${action.jobId}`,
+        studentId: state.student.id,
         jobId: action.jobId,
         status: 'applied',
+        stage: 'Applied',
         appliedLabel: 'Applied just now',
         appliedOrder: order,
         note: action.note || undefined,
@@ -178,6 +208,9 @@ function reducer(state: State, action: Action): State {
         resumeAttached: state.student.resume?.filename,
         fitSnapshot: fit.score,
         timeline: [{ status: 'applied', date: 'Just now' }],
+        availability: '',
+        preferenceNotes: [],
+        resumeSummary: '',
       };
       return {
         ...state,
@@ -189,67 +222,6 @@ function reducer(state: State, action: Action): State {
         // if they applied from the detail screen, drop back to the deck behind the modal
         screen: state.screen === 'detail' ? 'main' : state.screen,
         stack: state.screen === 'detail' ? [] : state.stack,
-      };
-    }
-
-    /**
-     * Stands in for the company dashboard. When the two products share a backend this
-     * is the `selections` row that unlocks the conversation — nothing else may create one.
-     */
-    case 'simulateSelection': {
-      const candidate =
-        state.applications.find((a) => a.status === 'applied') ??
-        state.applications.find((a) => a.status === 'reviewing' || a.status === 'shortlisted');
-      if (!candidate) return { ...state, toast: 'Apply to something first' };
-
-      const job = getJob(candidate.jobId);
-      const company = getCompany(job.companyId);
-
-      const applications = state.applications.map((a) =>
-        a.jobId === candidate.jobId
-          ? {
-              ...a,
-              status: 'selected' as const,
-              timeline: [...a.timeline, { status: 'selected' as const, date: 'Just now', detail: `${company.name} selected you.` }],
-            }
-          : a,
-      );
-
-      const conversation: Conversation = {
-        jobId: candidate.jobId,
-        unread: 1,
-        lastLabel: 'Now',
-        messages: [
-          {
-            id: `m-${Date.now()}`,
-            fromCompany: true,
-            text: openingMessage(state.student, job),
-            time: 'Now',
-            dayLabel: 'Today',
-          },
-        ],
-      };
-
-      const notification: Notification = {
-        id: `n-${Date.now()}`,
-        kind: 'selected',
-        title: `You have been selected by ${company.name}`,
-        body: `${company.name} selected you for ${job.title}. Open the chat to respond.`,
-        time: 'Just now',
-        group: 'Today',
-        unread: true,
-      };
-
-      return {
-        ...state,
-        applications,
-        conversations: [conversation, ...state.conversations.filter((c) => c.jobId !== candidate.jobId)],
-        notifications: [notification, ...state.notifications],
-        inboxUnlocked: true,
-        selection: candidate.jobId,
-        // The selection celebration supersedes it — otherwise closing the overlay
-        // reveals a stale "Applied" modal stacked underneath.
-        appliedModal: null,
       };
     }
 
@@ -265,7 +237,7 @@ function reducer(state: State, action: Action): State {
                 lastLabel: 'Now',
                 messages: [
                   ...c.messages,
-                  { id: `m-${Date.now()}`, fromCompany: false, text, time: 'Now' },
+                  { id: `pending-${Date.now()}`, fromCompany: false, text, time: 'Just now' },
                 ],
               }
             : c,
@@ -280,6 +252,32 @@ function reducer(state: State, action: Action): State {
           c.jobId === action.jobId ? { ...c, unread: 0 } : c,
         ),
       };
+
+    /**
+     * The company dashboard writes; this reads it back. A conversation that was not
+     * here a moment ago can only mean one thing — a recruiter selected her — so this is
+     * where the celebration is triggered from (CLAUDE.md section 3, rule 8).
+     */
+    case 'sync': {
+      const known = new Set(state.conversations.map((c) => c.id));
+      const arrived = action.workspace.conversations.find((c) => !known.has(c.id));
+
+      return {
+        ...state,
+        student: action.workspace.student,
+        deck: action.workspace.deckJobIds,
+        passed: action.workspace.passed,
+        saved: action.workspace.saved,
+        applications: action.workspace.applications,
+        conversations: action.workspace.conversations,
+        notifications: action.workspace.notifications,
+        inboxUnlocked: action.workspace.inboxUnlocked,
+        selection: arrived ? arrived.jobId : state.selection,
+        // The selection celebration supersedes it — otherwise closing the overlay
+        // reveals a stale "Applied" modal stacked underneath.
+        appliedModal: arrived ? null : state.appliedModal,
+      };
+    }
 
     case 'setLearn':
       return { ...state, learn: { ...state.learn, [action.skill]: action.status } };
@@ -311,7 +309,7 @@ function reducer(state: State, action: Action): State {
       return {
         ...state,
         student: {
-          ...initialStudent,
+          ...state.student,
           name: '',
           initial: '·',
           email: '',
@@ -331,22 +329,159 @@ function reducer(state: State, action: Action): State {
     case 'dismissGap':
       return { ...state, learn: { ...state.learn, [action.skill]: 'skipped' } };
 
-    case 'reset':
-      return initialState;
+    /** Back to the splash screen with nothing carried over from the session. */
+    case 'logout':
+      return { ...stateFromWorkspace(action.workspace), screen: 'splash' };
 
     default:
       return state;
   }
 }
 
+/** Screens that mean the student has not finished signing in yet. */
+const ONBOARDING = new Set<Screen>([
+  'splash',
+  'intro',
+  'auth',
+  'fork',
+  'upload',
+  'parsing',
+  'review',
+  'm-basic',
+  'm-skills',
+  'm-projects',
+  'm-prefs',
+]);
+
 const StoreContext = createContext<{
   state: State;
   dispatch: React.Dispatch<Action>;
+  sync: () => Promise<void>;
+  logout: () => void;
+  resetDemo: () => Promise<string>;
 } | null>(null);
 
-export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const value = useMemo(() => ({ state, dispatch }), [state]);
+export function StoreProvider({
+  workspace,
+  children,
+}: {
+  workspace: StudentWorkspace;
+  children: React.ReactNode;
+}) {
+  const [state, rawDispatch] = useReducer(reducer, workspace, stateFromWorkspace);
+
+  // The reducer stays pure. Anything that changes the database happens here, and the
+  // reload that follows is what makes the dashboard's view and this one agree.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  // Once onboarding is behind her, remember it, so a refresh returns to the app rather
+  // than the splash screen. The onboarding screens themselves are never remembered.
+  useEffect(() => {
+    if (ONBOARDING.has(state.screen)) return;
+    writeSession({ signedIn: true, tab: state.tab });
+  }, [state.screen, state.tab]);
+
+  /**
+   * Demo only. `demo_reset()` can be run from the profile tab here, from the company
+   * dashboard's settings or from `scripts/demo.mjs`, and it rebuilds every runtime row.
+   * Nothing else deletes an application, so an id that was here a moment ago and is gone
+   * now means the dataset was restored underneath this tab — reload onto it, rather than
+   * leave the app holding applications and threads that no longer exist.
+   */
+  const knownApplications = useRef(new Set(workspace.applications.map((a) => a.id)));
+
+  const sync = useCallback(async () => {
+    const next = await loadStudentWorkspace(db, DEMO_STUDENT_ID, catalog());
+
+    const ids = new Set(next.applications.map((a) => a.id));
+    for (const id of knownApplications.current) {
+      if (!ids.has(id)) return window.location.reload();
+    }
+    knownApplications.current = ids;
+
+    rawDispatch({ type: 'sync', workspace: next });
+  }, []);
+
+  const dispatch = useCallback(
+    (action: Action) => {
+      rawDispatch(action);
+
+      // `stateRef` still holds the state from before that dispatch, because React has not
+      // re-rendered yet. That is what we want: a toggle needs to know what it was toggled
+      // from, and the apply guard needs to know whether an application already existed.
+      const current = stateRef.current;
+      const after = (write: Promise<unknown>) => {
+        write.then(sync).catch((error) => {
+          console.error('[InSwipe] write failed', error);
+          rawDispatch({ type: 'patch', patch: { toast: 'Could not reach the server' } });
+        });
+      };
+
+      switch (action.type) {
+        case 'apply': {
+          if (current.applications.some((a) => a.jobId === action.jobId)) break;
+          after(
+            applyToJob(db, {
+              studentId: DEMO_STUDENT_ID,
+              jobId: action.jobId,
+              note: action.note,
+              noteWasAiDrafted: Boolean(action.note),
+              fit: computeFit(current.student, getJob(action.jobId)).score,
+            }),
+          );
+          break;
+        }
+        case 'pass':
+          after(passJob(db, DEMO_STUDENT_ID, action.jobId));
+          break;
+        case 'toggleSave':
+          after(setSaved(db, DEMO_STUDENT_ID, action.jobId, !current.saved.includes(action.jobId)));
+          break;
+        case 'send': {
+          const conversation = current.conversations.find((c) => c.jobId === action.jobId);
+          if (conversation && action.text.trim()) {
+            after(sendMessage(db, conversation.id, false, action.text));
+          }
+          break;
+        }
+        case 'readConversation': {
+          const conversation = current.conversations.find((c) => c.jobId === action.jobId);
+          if (conversation && conversation.unread > 0) {
+            after(markConversationRead(db, conversation.id, false));
+          }
+          break;
+        }
+        case 'nav':
+          if (action.screen === 'notifications' && current.notifications.some((n) => n.unread)) {
+            after(markNotificationsRead(db, DEMO_STUDENT_ID));
+          }
+          break;
+        default:
+          break;
+      }
+    },
+    [sync],
+  );
+
+  // Signing out is a session concern, not a data one: nothing is written to Supabase,
+  // the app simply forgets that anyone was signed in and returns to the splash screen.
+  const logout = useCallback(() => {
+    clearSession();
+    rawDispatch({ type: 'logout', workspace });
+  }, [workspace]);
+
+  /**
+   * Demo only: restores the dataset a presentation starts from. The caller reloads the
+   * page afterwards — the deck, the applications and the catalogue itself are all views
+   * of rows this call has just replaced.
+   */
+  const resetDemo = useCallback(() => resetDemoData(db), []);
+
+  const value = useMemo(
+    () => ({ state, dispatch, sync, logout, resetDemo }),
+    [state, dispatch, sync, logout, resetDemo],
+  );
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
@@ -379,5 +514,3 @@ export const useDeck = () => {
       .sort((a, b) => b.fit.score - a.fit.score);
   }, [state.deck, state.student, state.filters]);
 };
-
-export const allJobs = jobs;

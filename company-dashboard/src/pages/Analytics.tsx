@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { ANALYTICS_DATA } from "../data/mock";
+import { useDashboard } from "../data/store";
 
 const Tip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -13,6 +13,8 @@ const Tip = ({ active, payload, label }: any) => {
 };
 
 export default function Analytics() {
+  const { analytics } = useDashboard();
+
   const [ready, setReady] = useState(false);
   useEffect(() => { const t = setTimeout(() => setReady(true), 80); return () => clearTimeout(t); }, []);
 
@@ -52,7 +54,7 @@ export default function Analytics() {
             <div className="text-[22px] font-bold" style={{ color: "#0F1117" }}>3,167</div>
           </div>
           <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={ANALYTICS_DATA.impressions} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+            <AreaChart data={analytics.impressions} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <defs>
                 <linearGradient id="impG" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#4F46E5" stopOpacity={0.15} />
@@ -78,7 +80,7 @@ export default function Analytics() {
             <div className="text-[22px] font-bold" style={{ color: "#16A34A" }}>11.3%</div>
           </div>
           <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={ANALYTICS_DATA.applyRate} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+            <AreaChart data={analytics.applyRate} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <defs>
                 <linearGradient id="applyG" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="#16A34A" stopOpacity={0.15} />
@@ -101,13 +103,13 @@ export default function Analytics() {
             <p className="text-[12px] mt-0.5" style={{ color: "#9CA3AF" }}>By active role</p>
           </div>
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={ANALYTICS_DATA.avgFitScore} margin={{ top: 5, right: 5, left: -25, bottom: 0 }} barSize={32}>
+            <BarChart data={analytics.avgFitScore} margin={{ top: 5, right: 5, left: -25, bottom: 0 }} barSize={32}>
               <CartesianGrid vertical={false} stroke="#F0F0F5" />
               <XAxis dataKey="label" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} domain={[50, 100]} />
               <Tooltip content={<Tip />} />
               <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                {ANALYTICS_DATA.avgFitScore.map((_, i) => <Cell key={i} fill={["#4F46E5","#16A34A","#EA580C"][i]} fillOpacity={0.85} />)}
+                {analytics.avgFitScore.map((_, i) => <Cell key={i} fill={["#4F46E5","#16A34A","#EA580C"][i]} fillOpacity={0.85} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -120,7 +122,7 @@ export default function Analytics() {
             <p className="text-[12px] mt-0.5" style={{ color: "#9CA3AF" }}>% of applicants with each required skill</p>
           </div>
           <div className="space-y-3">
-            {ANALYTICS_DATA.skillDemand.map((item, i) => {
+            {analytics.skillDemand.map((item, i) => {
               const color = item.demand >= 80 ? "#16A34A" : item.demand >= 65 ? "#4F46E5" : "#EA580C";
               return (
                 <div key={item.skill} className="flex items-center gap-3">

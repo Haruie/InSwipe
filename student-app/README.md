@@ -1,10 +1,12 @@
 # InSwipe — Student App
 
 The student mobile app, wired together from the Figma Make designs into one working
-application. Vite + React + TypeScript + Tailwind, mock data only, no backend.
+application. Vite + React + TypeScript + Tailwind, reading and writing the same Supabase
+database as the company dashboard.
 
 ```bash
 npm install
+cp .env.example .env   # then paste the project's publishable (anon) key
 npm run dev
 ```
 
@@ -22,37 +24,41 @@ This is not a click-through of static screens. State is real:
 - **Applying** opens the note sheet, adds a real application, removes the job from the
   deck and updates every counter.
 - **Saving** adds to the Saved tab; removing it there brings back the empty state.
-- **The inbox is genuinely locked** until a selection exists. There is no way to open a
-  conversation without one.
-- **Sending a message** appends to that conversation and persists across navigation.
+- **The inbox is genuinely locked** until a selection exists — and the lock is the
+  database's, not this app's. No client can create a conversation without one.
+- **Sending a message** writes it, and the recruiter sees it in the other app.
 - **The learning list** aggregates real gaps across the jobs actually applied to, ranked
   by demand.
 
-State lives in memory, so a page reload resets the demo. That is deliberate for now.
+Everything survives a reload, because none of it lives in this process.
 
-## The demo button
+## There is no demo button any more
 
-Bottom-right of the window, outside the phone: **Demo: simulate selection**.
+There used to be a "simulate selection" control here, standing in for the company
+dashboard. It is gone, because the company dashboard is now real: open it at
+http://localhost:8443, find Anika Sharma in TechNova's applicant list and select her.
 
-This stands in for the company dashboard. It picks the most recent application, marks it
-selected, creates the conversation with the company's opening message, unlocks the inbox
-and fires the celebration overlay. Without it there is no way to reach the payoff screens,
-since nothing else in the student app is allowed to create a selection.
-
-When the two products share a backend, this button is replaced by a `selections` row
-written by the company side. Nothing else changes.
+This app polls Supabase every four seconds, so within a few seconds of that the padlock
+becomes a thread, the celebration overlay fires, and the recruiter's opening message is
+already waiting in it.
 
 ## Structure
 
 ```
 src/
-  data/          types, companies, jobs, the student — mock data, no UI
-  lib/fit.ts     the fit-score engine (weights from CLAUDE.md §5)
-  lib/note.ts    AI note drafting and the company's opening message
-  store.tsx      reducer, navigation stack, selectors
-  components/    PhoneFrame, BottomNav, AppHeader, Icons, ui primitives
-  screens/       one file per flow
+  lib/db.ts        the Supabase client, and which student is signed in
+  data/catalog.ts  companies and jobs, loaded once before the app mounts
+  data/student.ts  gap hints — copy, not data
+  lib/fit.ts       the student-voiced adapter over the shared engine
+  lib/note.ts      AI note drafting
+  store.tsx        reducer, navigation stack, and the write each action fires
+  components/      PhoneFrame, BottomNav, AppHeader, Icons, ui primitives
+  screens/         one file per flow
 ```
+
+Every read and write goes through [`packages/data`](../packages/data). The reducer stays
+pure: `dispatch` applies the optimistic state change, fires the matching RPC, then re-reads
+the workspace so the screen and the database agree.
 
 ### The fit engine
 
@@ -77,8 +83,9 @@ breakdown, matched factors with plain-language reasons, and gaps with actionable
 The student app renders it as *what you bring / what to work on*. The company app will
 render the same rows as *what they bring / what they lack*.
 
-Swapping mock data for a real API means replacing the body of `computeFit` — no component
-changes.
+Profiles and jobs come from Supabase; the score never does. Swapping the heuristic for a
+real model means replacing the body of `computeFit` — no component changes, and no schema
+changes either, because no score is stored.
 
 ## Screens
 
@@ -90,7 +97,8 @@ celebration · profile · learning list · notifications.
 
 ## Known gaps
 
-- No persistence — reload resets everything.
+- No real auth; any sign-in path lands in the app as `anika-sharma`.
+- Profile edits stay in this process — they are not written back to Supabase, so the
+  recruiter still sees the stored profile.
 - The resume upload is simulated; no file is read.
-- Profile edit mode toggles but most fields aren't editable inline yet.
-- No real auth; any sign-in path lands in the app.
+- Polling, not realtime: a selection can take up to four seconds to show up.

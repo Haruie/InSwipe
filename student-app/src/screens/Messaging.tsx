@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { getJob } from '../data/jobs';
-import { getCompany } from '../data/companies';
+import { getCompany, getJob } from '../data/catalog';
 import { suggestedReplies } from '../lib/note';
 import { AppHeader } from '../components/AppHeader';
 import { HomeIndicator, StatusBar } from '../components/PhoneFrame';

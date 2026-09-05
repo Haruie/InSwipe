@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDashboard } from "../data/store";
 
 interface Props { onClose: () => void; }
 
@@ -29,27 +30,44 @@ function PhoneFrame({ children }: { children: React.ReactNode }) {
 }
 
 function StudentCard({ form }: { form: any }) {
-  const hasRequired = form.requiredSkills.length > 0;
+  // Read from the real company row rather than restating it: this panel's whole claim
+  // is that it shows what the student will see, and the student's card leads with the
+  // company's cover image.
+  const { company } = useDashboard();
+  const [coverFailed, setCoverFailed] = useState(false);
   const studFits = form.requiredSkills.slice(0, 3);
   const studLacks = form.preferredSkills.slice(0, 2);
 
   return (
     <div className="mx-2 rounded-[20px] overflow-hidden" style={{ background: "#FFFFFF", boxShadow: "0 4px 12px rgba(15,17,23,0.08)", border: "1px solid #E8E8EF" }}>
-      {/* Card header */}
-      <div className="px-4 pt-4 pb-3 relative">
-        {/* 92% fit pill */}
-        <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: "#DCFCE7", color: "#15803D" }}>
+      {/* Cover — the gradient stays under the image, exactly as it does on the card */}
+      <div className="relative" style={{ height: 84, background: company.gradient }}>
+        {company.coverUrl && !coverFailed && (
+          <img
+            src={company.coverUrl}
+            alt=""
+            aria-hidden
+            onError={() => setCoverFailed(true)}
+            className="absolute inset-0 w-full h-full"
+            style={{ objectFit: "cover" }}
+          />
+        )}
+        <div className="absolute top-2.5 right-3 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "#FFFFFF", color: "#15803D" }}>
           92% fit
         </div>
+      </div>
+
+      {/* Card header */}
+      <div className="px-4 pt-4 pb-3 relative">
         {/* Company */}
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[12px] font-bold text-white" style={{ background: "#4F46E5" }}>T</div>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[12px] font-bold text-white" style={{ background: company.color }}>{company.initial}</div>
           <div>
-            <div className="text-[11px] font-semibold" style={{ color: "#0F1117" }}>TechNova</div>
-            <div className="text-[10px]" style={{ color: "#9CA3AF" }}>AI Infrastructure</div>
+            <div className="text-[11px] font-semibold" style={{ color: "#0F1117" }}>{company.name}</div>
+            <div className="text-[10px]" style={{ color: "#9CA3AF" }}>{company.industry}</div>
           </div>
         </div>
-        <h4 className="text-[13px] font-bold mb-1 pr-16" style={{ color: "#0F1117" }}>{form.title || "Role Title"}</h4>
+        <h4 className="text-[13px] font-bold mb-1" style={{ color: "#0F1117" }}>{form.title || "Role Title"}</h4>
         <div className="flex flex-wrap gap-1 mb-2">
           {form.location && <span className="text-[10px]" style={{ color: "#9CA3AF" }}>{form.location}</span>}
           {form.stipend && <span className="text-[10px] font-semibold" style={{ color: "#4F46E5" }}>· {form.stipend}</span>}
