@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: #eaeaf2;
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: #0f1117;
+  }
+  button {
+    font-family: inherit;
+  }
+  /* Themed focus, never the browser default */
+  :focus-visible {
+    outline: 2px solid #4f46e5;
+    outline-offset: 2px;
+  }
+}
+
+/* Referenced from inline styles, so Tailwind's keyframe emission never sees it. */
+@keyframes confetti {
+  from {
+    transform: translateY(-30px) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(760px) rotate(540deg);
+    opacity: 0;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #eef0f4 25%, #f6f7f9 37%, #eef0f4 63%);
+    background-size: 640px 100%;
+  }
+  .press {
+    transition: transform 0.14s ease;
+  }
+  .press:active {
+    transform: scale(0.96);
+  }
+}
