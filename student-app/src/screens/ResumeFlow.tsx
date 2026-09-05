@@ -188,6 +188,8 @@ export function ResumeParsing() {
 export function ReviewProfile() {
   const { state, dispatch } = useStore();
   const s = state.student;
+  const addSkillHint = () =>
+    dispatch({ type: 'patch', patch: { toast: 'You can add more skills anytime from your profile' } });
 
   return (
     <div className="flex h-full flex-col bg-canvas">
@@ -218,7 +220,10 @@ export function ReviewProfile() {
                 {sk.name}
               </Tag>
             ))}
-            <button className="press inline-flex items-center gap-1 rounded-sm border border-dashed border-line px-2 py-1 text-[11.5px] font-semibold text-ink-500">
+            <button
+              onClick={addSkillHint}
+              className="press inline-flex items-center gap-1 rounded-sm border border-dashed border-line px-2 py-1 text-[11.5px] font-semibold text-ink-500"
+            >
               <IconPlus size={12} /> Add skill
             </button>
           </div>
@@ -275,11 +280,18 @@ export function ReviewProfile() {
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  const { dispatch } = useStore();
   return (
     <section className="mt-5 rounded-lg bg-white p-4 shadow-subtle">
       <div className="mb-3 flex items-center justify-between">
         <SectionLabel>{title}</SectionLabel>
-        <button className="press -mt-2 text-ink-300" aria-label={`Edit ${title}`}>
+        <button
+          onClick={() =>
+            dispatch({ type: 'patch', patch: { toast: `You can edit ${title.toLowerCase()} anytime from your profile` } })
+          }
+          className="press -mt-2 text-ink-300"
+          aria-label={`Edit ${title}`}
+        >
           <IconEdit size={16} />
         </button>
       </div>

@@ -247,6 +247,9 @@ function reducer(state: State, action: Action): State {
         notifications: [notification, ...state.notifications],
         inboxUnlocked: true,
         selection: candidate.jobId,
+        // The selection celebration supersedes it — otherwise closing the overlay
+        // reveals a stale "Applied" modal stacked underneath.
+        appliedModal: null,
       };
     }
 

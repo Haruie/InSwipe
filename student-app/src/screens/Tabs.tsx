@@ -457,17 +457,23 @@ export function Profile() {
               <IconFile size={17} />
             </span>
             <div className="flex-1">
-              <div className="text-[13.5px] font-semibold text-ink-900">{s.resume?.filename}</div>
-              <div className="text-[12px] text-ink-300">
-                {s.resume?.updated} · {s.resume?.size}
-              </div>
+              {s.resume ? (
+                <>
+                  <div className="text-[13.5px] font-semibold text-ink-900">{s.resume.filename}</div>
+                  <div className="text-[12px] text-ink-300">
+                    {s.resume.updated} · {s.resume.size}
+                  </div>
+                </>
+              ) : (
+                <div className="text-[13.5px] text-ink-300">No resume on file yet</div>
+              )}
             </div>
             {editing && (
               <button
                 onClick={() => dispatch({ type: 'patch', patch: { toast: 'Resume upload arrives with the backend' } })}
                 className="press text-[12.5px] font-semibold text-primary-500"
               >
-                Replace
+                {s.resume ? 'Replace' : 'Add'}
               </button>
             )}
           </div>

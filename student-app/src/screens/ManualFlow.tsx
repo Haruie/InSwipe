@@ -73,7 +73,10 @@ export function ManualBasic() {
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-[22px] font-bold text-primary-500">
           {s.initial}
         </span>
-        <button className="press text-[13.5px] font-semibold text-primary-500">
+        <button
+          onClick={() => dispatch({ type: 'patch', patch: { toast: 'Photo upload arrives with the backend' } })}
+          className="press text-[13.5px] font-semibold text-primary-500"
+        >
           Add a photo (optional)
         </button>
       </div>

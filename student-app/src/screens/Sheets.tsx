@@ -146,8 +146,14 @@ export function NoteSheet() {
             <IconFile size={16} />
           </span>
           <span className="flex-1 text-[12.5px] leading-tight text-ink-500">
-            <span className="font-semibold text-ink-900">{state.student.resume?.filename}</span> will
-            be sent with your application
+            {state.student.resume ? (
+              <>
+                <span className="font-semibold text-ink-900">{state.student.resume.filename}</span>{' '}
+                will be sent with your application
+              </>
+            ) : (
+              'No resume on file — add one from your profile so companies can review it.'
+            )}
           </span>
         </div>
       </div>

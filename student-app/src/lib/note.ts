@@ -48,9 +48,10 @@ export function draftNote(student: Student, job: Job, fit: FitScore): string {
 export function openingMessage(student: Student, job: Job): string {
   const company = getCompany(job.companyId);
   const project = student.projects[0];
-  return `Hi ${student.name.split(' ')[0]} — we went through your application for ${job.title} and were impressed by ${shortName(
-    project.name,
-  )}. We would like to set up a short call this week. Does Thursday or Friday afternoon work for you?`;
+  const highlight = project
+    ? `were impressed by ${shortName(project.name)}`
+    : `liked what we saw in your profile`;
+  return `Hi ${student.name.split(' ')[0]} — we went through your application for ${job.title} and ${highlight}. We would like to set up a short call this week. Does Thursday or Friday afternoon work for you?`;
 }
 
 export const suggestedReplies = [
