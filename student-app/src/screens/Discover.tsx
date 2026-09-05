@@ -41,15 +41,14 @@ export function Discover() {
   const [exit, setExit] = useState<null | { id: string; dir: 'apply' | 'pass'; fit: FitScore }>(null);
   const start = useRef({ x: 0, y: 0 });
 
-  // Whatever isn't currently exiting, in deck order.
-  const rest = exit ? deck.filter((d) => d.id !== exit.id) : deck.slice(1);
-  // The interactive card is only ever the real top of the deck — while
-  // something is exiting, the front slot shows that ghost instead, and the
-  // card behind it is already sitting in position underneath, ready to take
-  // over the instant the ghost is gone. No card ever animates back into view.
-  const interactive = exit ? null : deck[0];
-  const front = exit ? { id: exit.id, fit: exit.fit } : interactive;
-  const behind = rest.slice(0, 2);
+  // The deck with whatever's currently exiting already excluded, so the next
+  // two cards are ready to be promoted the instant a swipe starts — not only
+  // once the exit animation, or the note sheet, finishes.
+  const stack = exit ? deck.filter((d) => d.id !== exit.id) : deck;
+  const visible = stack.slice(0, 3);
+  // Blocked while something is exiting, so a second swipe can't race the
+  // first ghost's own flight — the queue is already moving, it just needs a beat.
+  const interactive = exit ? null : visible[0];
   const filtersActive = state.filters.minFit > 0 || state.filters.workMode !== 'Any';
 
   const reset = () => setDrag({ x: 0, y: 0, active: false });
@@ -106,26 +105,8 @@ export function Discover() {
     reset();
   };
 
-  const isGhost = Boolean(exit);
-  const applyOpacity = isGhost
-    ? exit!.dir === 'apply'
-      ? 1
-      : 0
-    : Math.max(0, Math.min(1, drag.x / 110));
-  const passOpacity = isGhost
-    ? exit!.dir === 'pass'
-      ? 1
-      : 0
-    : Math.max(0, Math.min(1, -drag.x / 110));
-
-  let tx = drag.x;
-  let ty = drag.y * 0.3;
-  let rot = drag.x / 20;
-  if (isGhost) {
-    tx = exit!.dir === 'apply' ? 560 : -560;
-    rot = exit!.dir === 'apply' ? 22 : -22;
-    ty = -30;
-  }
+  const applyOpacity = Math.max(0, Math.min(1, drag.x / 110));
+  const passOpacity = Math.max(0, Math.min(1, -drag.x / 110));
 
   return (
     <div className="flex h-full flex-col">
@@ -151,48 +132,70 @@ export function Discover() {
 
       {/* card area — 524px budget */}
       <div className="relative mx-4 flex-1" style={{ minHeight: 0 }}>
-        {front ? (
+        {visible.length > 0 ? (
           <>
-            {/* The stack peeks into the 32px reserved below the card, never into the actions. */}
-            {behind.map((b, i) => (
+            {/* One persistent element per card, keyed by job id. A card keeps
+                that key as it climbs the stack, so when the one ahead of it
+                leaves, this one transitions smoothly from its dimmed, scaled
+                "behind" position up into the full-size front slot instead of
+                just appearing there. */}
+            {visible.map((c, depth) => {
+              const isFront = depth === 0;
+              const canDrag = isFront && Boolean(interactive);
+              return (
+                <div
+                  key={c.id}
+                  onPointerDown={canDrag ? onPointerDown : undefined}
+                  onPointerMove={canDrag ? onPointerMove : undefined}
+                  onPointerUp={canDrag ? onPointerUp : undefined}
+                  onPointerCancel={canDrag ? onPointerUp : undefined}
+                  className="absolute inset-x-0 top-0 rounded-xl"
+                  style={{
+                    height: 'calc(100% - 32px)',
+                    transform: isFront
+                      ? `translate(${drag.x}px, ${drag.y * 0.3}px) rotate(${drag.x / 20}deg)`
+                      : `scale(${1 - depth * 0.045}) translateY(${depth * 16}px)`,
+                    opacity: isFront ? 1 : 0.85 - (depth - 1) * 0.35,
+                    zIndex: 3 - depth,
+                    cursor: canDrag ? 'grab' : undefined,
+                    touchAction: canDrag ? 'none' : undefined,
+                    pointerEvents: canDrag ? 'auto' : 'none',
+                    transition:
+                      isFront && drag.active
+                        ? 'none'
+                        : 'transform .3s cubic-bezier(.22,1,.36,1), opacity .3s ease',
+                  }}
+                >
+                  <JobCard
+                    job={getJob(c.id)}
+                    fit={c.fit}
+                    applyOpacity={isFront ? applyOpacity : 0}
+                    passOpacity={isFront ? passOpacity : 0}
+                  />
+                </div>
+              );
+            })}
+
+            {exit && (
               <div
-                key={b.id}
-                className="absolute inset-x-0 top-0 rounded-xl bg-white shadow-card"
+                className="absolute inset-x-0 top-0 z-20 pointer-events-none"
                 style={{
                   height: 'calc(100% - 32px)',
-                  transform: `scale(${1 - (i + 1) * 0.045}) translateY(${(i + 1) * 16}px)`,
-                  opacity: 0.85 - i * 0.35,
-                  zIndex: 1,
-                  transition: 'transform .25s ease, opacity .25s ease',
+                  transform: `translate(${exit.dir === 'apply' ? 560 : -560}px, -30px) rotate(${
+                    exit.dir === 'apply' ? 22 : -22
+                  }deg)`,
+                  opacity: 0,
+                  transition: 'transform .3s cubic-bezier(.22,1,.36,1), opacity .3s ease',
                 }}
-              />
-            ))}
-            {/* Keyed by the front card's own id, not its position — while it's
-                flying out this stays the same ghost, so the exit animation
-                plays on one continuous element. The moment a genuinely
-                different card takes the front slot, the key changes and it
-                mounts fresh at rest, instead of inheriting the ghost's
-                transition and sliding back into view. */}
-            <div
-              key={front.id}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerUp}
-              className={`absolute inset-x-0 top-0 z-10 ${
-                isGhost ? 'pointer-events-none' : 'cursor-grab touch-none active:cursor-grabbing'
-              }`}
-              style={{
-                height: 'calc(100% - 32px)',
-                transform: `translate(${tx}px, ${ty}px) rotate(${rot}deg)`,
-                opacity: isGhost ? 0 : 1,
-                transition: drag.active
-                  ? 'none'
-                  : 'transform .3s cubic-bezier(.22,1,.36,1), opacity .3s ease',
-              }}
-            >
-              <JobCard job={getJob(front.id)} fit={front.fit} applyOpacity={applyOpacity} passOpacity={passOpacity} />
-            </div>
+              >
+                <JobCard
+                  job={getJob(exit.id)}
+                  fit={exit.fit}
+                  applyOpacity={exit.dir === 'apply' ? 1 : 0}
+                  passOpacity={exit.dir === 'pass' ? 1 : 0}
+                />
+              </div>
+            )}
           </>
         ) : filtersActive ? (
           // Filters hid everything — saying "all caught up" here would be a lie.
