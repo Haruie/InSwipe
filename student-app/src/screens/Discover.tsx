@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDeck, useStore } from '../store';
 import { getJob } from '../data/jobs';
 import { getCompany } from '../data/companies';
@@ -35,30 +35,51 @@ export function Discover() {
   const { state, dispatch } = useStore();
   const deck = useDeck();
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
-  const [exiting, setExiting] = useState<null | 'apply' | 'pass'>(null);
+  // The card that's flying off. Kept separate from `deck` because pass removes
+  // the job from the deck immediately while apply waits on the note sheet —
+  // either way, this is what's visually leaving, independent of that timing.
+  const [exit, setExit] = useState<null | { id: string; dir: 'apply' | 'pass'; fit: FitScore }>(null);
   const start = useRef({ x: 0, y: 0 });
 
-  const top = deck[0];
-  const behind = deck.slice(1, 3);
+  // Whatever isn't currently exiting, in deck order.
+  const rest = exit ? deck.filter((d) => d.id !== exit.id) : deck.slice(1);
+  // The interactive card is only ever the real top of the deck — while
+  // something is exiting, the front slot shows that ghost instead, and the
+  // card behind it is already sitting in position underneath, ready to take
+  // over the instant the ghost is gone. No card ever animates back into view.
+  const interactive = exit ? null : deck[0];
+  const front = exit ? { id: exit.id, fit: exit.fit } : interactive;
+  const behind = rest.slice(0, 2);
   const filtersActive = state.filters.minFit > 0 || state.filters.workMode !== 'Any';
 
   const reset = () => setDrag({ x: 0, y: 0, active: false });
 
   const fly = useCallback(
-    (dir: 'apply' | 'pass', jobId: string) => {
-      setExiting(dir);
-      setTimeout(() => {
-        setExiting(null);
-        reset();
-        if (dir === 'pass') dispatch({ type: 'pass', jobId });
-        else dispatch({ type: 'openNote', jobId });
-      }, 300);
+    (dir: 'apply' | 'pass', jobId: string, fit: FitScore) => {
+      setExit({ id: jobId, dir, fit });
+      setDrag({ x: 0, y: 0, active: false });
+      if (dir === 'pass') {
+        dispatch({ type: 'pass', jobId });
+        // Nothing else needs to happen first — drop the ghost once its flight is done.
+        setTimeout(() => setExit((cur) => (cur?.id === jobId ? null : cur)), 300);
+      } else {
+        // Apply's ghost is cleared by the effect below, once the note sheet
+        // actually resolves — not on a timer — so a still-open sheet never
+        // has its card silently reset underneath it.
+        dispatch({ type: 'openNote', jobId });
+      }
     },
     [dispatch],
   );
 
+  useEffect(() => {
+    if (exit?.dir === 'apply' && state.sheet !== 'note') {
+      setExit(null);
+    }
+  }, [state.sheet, exit]);
+
   const onPointerDown = (e: React.PointerEvent) => {
-    if (exiting) return;
+    if (!interactive) return;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     start.current = { x: e.clientX, y: e.clientY };
     setDrag({ x: 0, y: 0, active: true });
@@ -68,32 +89,41 @@ export function Discover() {
     setDrag({ x: e.clientX - start.current.x, y: e.clientY - start.current.y, active: true });
   };
   const onPointerUp = () => {
-    if (!drag.active || !top) return;
+    if (!drag.active || !interactive) return;
     if (drag.x > THRESHOLD) {
-      fly('apply', top.id);
+      fly('apply', interactive.id, interactive.fit);
       return;
     }
     if (drag.x < -THRESHOLD) {
-      fly('pass', top.id);
+      fly('pass', interactive.id, interactive.fit);
       return;
     }
     // A tap, not a drag. Pointer capture swallows the click event, so open here.
     if (Math.abs(drag.x) < 6 && Math.abs(drag.y) < 6) {
-      dispatch({ type: 'patch', patch: { detailJobId: top.id } });
+      dispatch({ type: 'patch', patch: { detailJobId: interactive.id } });
       dispatch({ type: 'nav', screen: 'detail' });
     }
     reset();
   };
 
-  const applyOpacity = exiting === 'apply' ? 1 : Math.max(0, Math.min(1, drag.x / 110));
-  const passOpacity = exiting === 'pass' ? 1 : Math.max(0, Math.min(1, -drag.x / 110));
+  const isGhost = Boolean(exit);
+  const applyOpacity = isGhost
+    ? exit!.dir === 'apply'
+      ? 1
+      : 0
+    : Math.max(0, Math.min(1, drag.x / 110));
+  const passOpacity = isGhost
+    ? exit!.dir === 'pass'
+      ? 1
+      : 0
+    : Math.max(0, Math.min(1, -drag.x / 110));
 
   let tx = drag.x;
   let ty = drag.y * 0.3;
   let rot = drag.x / 20;
-  if (exiting) {
-    tx = exiting === 'apply' ? 560 : -560;
-    rot = exiting === 'apply' ? 22 : -22;
+  if (isGhost) {
+    tx = exit!.dir === 'apply' ? 560 : -560;
+    rot = exit!.dir === 'apply' ? 22 : -22;
     ty = -30;
   }
 
@@ -121,7 +151,7 @@ export function Discover() {
 
       {/* card area — 524px budget */}
       <div className="relative mx-4 flex-1" style={{ minHeight: 0 }}>
-        {top ? (
+        {front ? (
           <>
             {/* The stack peeks into the 32px reserved below the card, never into the actions. */}
             {behind.map((b, i) => (
@@ -133,25 +163,35 @@ export function Discover() {
                   transform: `scale(${1 - (i + 1) * 0.045}) translateY(${(i + 1) * 16}px)`,
                   opacity: 0.85 - i * 0.35,
                   zIndex: 1,
+                  transition: 'transform .25s ease, opacity .25s ease',
                 }}
               />
             ))}
+            {/* Keyed by the front card's own id, not its position — while it's
+                flying out this stays the same ghost, so the exit animation
+                plays on one continuous element. The moment a genuinely
+                different card takes the front slot, the key changes and it
+                mounts fresh at rest, instead of inheriting the ghost's
+                transition and sliding back into view. */}
             <div
+              key={front.id}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
-              className="absolute inset-x-0 top-0 z-10 cursor-grab touch-none active:cursor-grabbing"
+              className={`absolute inset-x-0 top-0 z-10 ${
+                isGhost ? 'pointer-events-none' : 'cursor-grab touch-none active:cursor-grabbing'
+              }`}
               style={{
                 height: 'calc(100% - 32px)',
                 transform: `translate(${tx}px, ${ty}px) rotate(${rot}deg)`,
-                opacity: exiting ? 0 : 1,
+                opacity: isGhost ? 0 : 1,
                 transition: drag.active
                   ? 'none'
                   : 'transform .3s cubic-bezier(.22,1,.36,1), opacity .3s ease',
               }}
             >
-              <JobCard job={getJob(top.id)} fit={top.fit} applyOpacity={applyOpacity} passOpacity={passOpacity} />
+              <JobCard job={getJob(front.id)} fit={front.fit} applyOpacity={applyOpacity} passOpacity={passOpacity} />
             </div>
           </>
         ) : filtersActive ? (
@@ -191,8 +231,8 @@ export function Discover() {
       <div className="flex h-[92px] shrink-0 items-start justify-center gap-11 pt-4">
         <Action
           label="PASS"
-          onClick={() => top && !exiting && fly('pass', top.id)}
-          disabled={!top || !!exiting}
+          onClick={() => interactive && fly('pass', interactive.id, interactive.fit)}
+          disabled={!interactive}
           size={56}
           color="#DC2626"
           border
@@ -201,18 +241,18 @@ export function Discover() {
         </Action>
         <Action
           label="SAVE"
-          onClick={() => top && dispatch({ type: 'toggleSave', jobId: top.id })}
-          disabled={!top}
+          onClick={() => interactive && dispatch({ type: 'toggleSave', jobId: interactive.id })}
+          disabled={!interactive}
           size={48}
-          color={top && state.saved.includes(top.id) ? '#F59E0B' : '#F59E0B'}
-          filled={Boolean(top && state.saved.includes(top.id))}
+          color={interactive && state.saved.includes(interactive.id) ? '#F59E0B' : '#F59E0B'}
+          filled={Boolean(interactive && state.saved.includes(interactive.id))}
         >
           <IconStarFilled size={19} />
         </Action>
         <Action
           label="APPLY"
-          onClick={() => top && !exiting && fly('apply', top.id)}
-          disabled={!top || !!exiting}
+          onClick={() => interactive && fly('apply', interactive.id, interactive.fit)}
+          disabled={!interactive}
           size={56}
           color="#16A34A"
           solid
