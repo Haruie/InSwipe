@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Page } from "../App";
 import type { Job } from "../data/mock";
+import { locationLabel, stipendLabel } from "../data/mock";
 
 interface Props {
   onNavigate: (page: Page) => void;
@@ -54,10 +55,10 @@ function JobCard({ job, onNavigate, onSelectJob, onOpenPostJob, onChangeJobStatu
           <div className="flex items-center gap-4">
             <span className="text-[12px] flex items-center gap-1" style={{ color: "#6B7280" }}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-              {job.location}
+              {locationLabel(job)}
             </span>
             <span className="text-[12px]" style={{ color: "#6B7280" }}>{job.type}</span>
-            <span className="text-[12px] font-semibold" style={{ color: "#4F46E5" }}>{job.stipend}</span>
+            <span className="text-[12px] font-semibold" style={{ color: "#4F46E5" }}>{stipendLabel(job)}</span>
           </div>
         </div>
 
@@ -92,7 +93,7 @@ function JobCard({ job, onNavigate, onSelectJob, onOpenPostJob, onChangeJobStatu
         </div>
       </div>
 
-      <p className="text-[13px] leading-relaxed mb-5" style={{ color: "#6B7280" }}>{job.description}</p>
+      <p className="text-[13px] leading-relaxed mb-5" style={{ color: "#6B7280" }}>{job.about}</p>
 
       <div className="mb-5 space-y-2">
         <div className="flex items-center gap-1.5 flex-wrap">

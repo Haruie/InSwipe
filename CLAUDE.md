@@ -2,13 +2,15 @@
 
 > AI-powered internship matchmaking. Students swipe. Companies choose. The AI explains why.
 
-**Status:** Student app built and running in `student-app/`. Company web dashboard
-designed in Figma, not yet built. Backend to follow.
+**Status:** Student app and company dashboard both built and running on mock data, over a
+shared fit engine in `packages/core/`. Backend to follow.
 **Products:** A student mobile app and a company web dashboard. Two surfaces, one brand.
 
 | Where | What |
 |---|---|
+| `packages/core/` | Shared domain types and the fit engine — the one copy both apps read |
 | `student-app/` | The working student app — Vite + React + TS + Tailwind, mock data |
+| `company-dashboard/` | The working company dashboard — Vite + React + TS + Tailwind, mock data |
 | `figma-build-guide.md` | Paste-by-paste Figma Make prompts |
 | `figma-prompts.md` | Full screen-by-screen design spec |
 | Student designs | https://dun-rival-31434366.figma.site |

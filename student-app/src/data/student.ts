@@ -1,6 +1,7 @@
 import type { Application, Conversation, Notification, Student } from './types';
 
 export const initialStudent: Student = {
+  id: 'anika-sharma',
   name: 'Anika Sharma',
   initial: 'A',
   email: 'anika@srm.edu.in',
