@@ -1,10 +1,10 @@
 import { useState } from "react";
-import type { Candidate } from "../data/mock";
-import { KANBAN_STAGES, fitBand } from "../data/mock";
+import { fitBand } from "@inswipe/core";
+import { KANBAN_STAGES, type Candidate } from "../data/candidates";
+import { useDashboard } from "../data/store";
 
 interface Props {
   candidates: Candidate[];
-  onStageChange: (id: string, stage: Candidate["stage"]) => void;
 }
 
 const STAGE_STYLE: Record<string, { dot: string; bg: string; border: string; text: string }> = {
@@ -82,7 +82,8 @@ function Column({ stage, candidates, draggingId, onDragStart, onDragEnd, onDrop,
   );
 }
 
-export default function Pipeline({ candidates, onStageChange }: Props) {
+export default function Pipeline({ candidates }: Props) {
+  const { changeStage } = useDashboard();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
 
@@ -92,7 +93,8 @@ export default function Pipeline({ candidates, onStageChange }: Props) {
   }, {} as Record<string, Candidate[]>);
 
   const handleDrop = (stage: string) => {
-    if (draggingId) onStageChange(draggingId, stage as Candidate["stage"]);
+    const dragged = candidates.find(c => c.id === draggingId);
+    if (dragged) void changeStage(dragged, stage as Candidate["stage"]);
     setDraggingId(null); setOverStage(null);
   };
 

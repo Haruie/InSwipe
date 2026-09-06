@@ -1,6 +1,6 @@
 import React from 'react';
 import { bandColor } from '../lib/fit';
-import type { ApplicationStatus } from '../data/types';
+import type { ApplicationStatus, Company } from '../data/types';
 import { IconCheck, IconClose, IconSparkle } from './Icons';
 
 /* ---------------- Button ---------------- */
@@ -243,6 +243,43 @@ export function StatusTag({ status }: { status: ApplicationStatus }) {
 export const statusLabel = (s: ApplicationStatus) => STATUS_META[s].label;
 
 /* ---------------- Company mark ---------------- */
+
+/**
+ * The image every job card, job detail and company profile leads with.
+ *
+ * `company.gradient` stays underneath rather than being replaced by the image: it is
+ * what paints while the file loads, what shows if the file is missing, and what keeps
+ * the card looking like the company it belongs to either way. Decorative, so it is
+ * hidden from screen readers — the company name is right below it in every caller.
+ */
+export function CompanyCover({
+  company,
+  className = '',
+  style,
+  children,
+}: {
+  company: Pick<Company, 'coverUrl' | 'gradient'>;
+  className?: string;
+  style?: React.CSSProperties;
+  children?: React.ReactNode;
+}) {
+  const [failed, setFailed] = React.useState(false);
+
+  return (
+    <div className={`relative ${className}`} style={{ background: company.gradient, ...style }}>
+      {company.coverUrl && !failed && (
+        <img
+          src={company.coverUrl}
+          alt=""
+          aria-hidden
+          onError={() => setFailed(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      {children}
+    </div>
+  );
+}
 
 export function CompanyLogo({
   initial,

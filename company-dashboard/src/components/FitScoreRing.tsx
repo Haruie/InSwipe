@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fitBand } from "../data/mock";
+import { fitBand } from "@inswipe/core";
 
 interface Props {
   score: number;

@@ -9,7 +9,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@inswipe/core": ["../packages/core/src/index.ts"]
+      "@inswipe/core": ["../packages/core/src/index.ts"],
+      "@inswipe/data": ["../packages/data/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
@@ -20,5 +21,5 @@
     "strict": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "vite.config.ts", "../packages/core/src"]
+  "include": ["src", "vite.config.ts", "../packages/core/src", "../packages/data/src"]
 }

@@ -21,23 +21,35 @@ the product.
 | Student app designs | Done — [Figma Make](https://dun-rival-31434366.figma.site) |
 | Company designs | Dashboard screen only — [Figma Make](https://chisel-thumb-04330911.figma.site) |
 | **Student app (code)** | **Built and running — [`student-app/`](student-app)** |
-| **Company dashboard (code)** | **Built and running (mock data) — [`company-dashboard/`](company-dashboard)** |
+| **Company dashboard (code)** | **Built and running — [`company-dashboard/`](company-dashboard)** |
 | **Shared fit engine** | **Both apps read [`packages/core/`](packages/core)** |
-| Backend / database | Not started |
+| **Database** | **Supabase — one dataset, both apps. [`supabase/`](supabase)** |
+| Auth | Not started — one hard-coded student, one hard-coded company |
 
-The student app is a working React app, not a click-through. State is real: the deck
-re-ranks itself, applying writes an application, the inbox genuinely locks and unlocks.
+Both apps are working React apps, not click-throughs, and they now read and write **the
+same Supabase database**. A student applying on the phone appears in the recruiter's
+ranked list within seconds, and a recruiter selecting them unlocks that student's inbox
+for real. Nothing about the flow is simulated any more.
 
 ---
 
 ## Run it
 
-On Windows, `start.bat` in the repo root brings up both apps, each in its own window, and
-`stop.bat` shuts them both down. First time only, install dependencies in each app:
+First time only — install dependencies and point both apps at Supabase:
 
 ```bash
-npm install --prefix student-app && npm install --prefix company-dashboard
+npm install --prefix packages/data && npm install --prefix student-app && npm install --prefix company-dashboard
 ```
+
+Then copy `.env.example` to `.env` in **both** apps and paste the project's publishable
+(anon) key into each. Same project, same key, both files — that is the point.
+
+If the database is empty, apply the three files in
+[`supabase/migrations/`](supabase/migrations) in order, in the Supabase SQL editor. See
+[`supabase/README.md`](supabase/README.md).
+
+On Windows, `start.bat` in the repo root brings up both apps, each in its own window, and
+`stop.bat` shuts them both down.
 
 Or run either one on its own:
 
@@ -50,11 +62,9 @@ Open http://localhost:5173. On a laptop it renders in a 390×844 device frame; o
 it fills the screen — the terminal prints a Network address you can open on your phone
 over the same Wi-Fi.
 
-**Bottom-right of the window there's a "Demo: simulate selection" button.** It stands in
-for the company dashboard: it marks your most recent application as selected, writes the
-company's opening message, unlocks the inbox and fires the celebration. Without it the
-payoff screens are unreachable, because nothing else in the student app is allowed to
-create a selection.
+There is no longer a "simulate selection" button, because there is nothing left to
+simulate: the inbox unlocks when a recruiter selects you in the other app. The student app
+polls Supabase every four seconds, so the celebration fires while you are watching.
 
 The company dashboard:
 
@@ -64,6 +74,37 @@ npm run dev
 ```
 
 Open http://localhost:8443. See [`company-dashboard/README.md`](company-dashboard/README.md).
+
+---
+
+## The demo, end to end
+
+Run both apps side by side.
+
+1. **Student applies.** Swipe right on a TechNova role in the deck. `apply_to_job()`
+   writes an `applications` row, with the fit score as it stood.
+2. **Dashboard sees the applicant.** Within four seconds Anika Sharma appears in
+   TechNova's ranked list for that role, with her *Fits* and *Lacks* computed live.
+3. **Recruiter selects.** Open her drawer, hit **Select candidate**, edit the drafted
+   opening message and send. One transaction writes the `selections` row, the
+   conversation hanging off it, and that first message.
+4. **The student's inbox unlocks.** The padlock becomes a thread, the celebration
+   overlay fires, and the recruiter's message is already in it.
+5. **Both sides talk.** A reply from either app lands in the other within four seconds.
+
+To run it again, restore the dataset — from either app, without leaving the demo:
+
+- **Student app** → Profile tab → *Reset demo data*
+- **Company dashboard** → Settings → Demo → *Reset demo*
+
+Both confirmations offer to sign out too, for a run-through that starts from onboarding, and
+both apps reload onto the restored data whichever one you use. The same reset from a terminal:
+
+```bash
+node scripts/demo.mjs reset
+```
+
+`node scripts/demo.mjs check` prints what is in the database without changing anything.
 
 ---
 
@@ -108,23 +149,29 @@ is identical either way. Each app builds one engine and passes its own per-skill
 CLAUDE.md               product spec, hard rules, fit rubric, data model
 figma-prompts.md        screen-by-screen design spec
 figma-build-guide.md    paste-by-paste Figma Make prompts
-packages/core/          the shared layer — read this first
-  src/types.ts          domain types both surfaces use
-  src/fit.ts            the fit engine, one copy, two voices
-student-app/            the working student app
-  src/data/             companies, jobs, the student — mock data, no UI
-  src/lib/fit.ts        student-voiced adapter over packages/core
-  src/lib/note.ts       AI note drafting, company opening message
-  src/store.tsx         reducer, navigation stack, selectors
-  src/components/       PhoneFrame, BottomNav, Icons, ui primitives
-  src/screens/          one file per flow
-company-dashboard/      the working company dashboard
-  src/data/students.ts   applicants as real Student profiles — no fit numbers
-  src/data/jobs.ts       TechNova and its three postings
-  src/data/mock.ts       derives applicant rows by running computeFit()
-  src/lib/fit.ts         company-voiced adapter over packages/core
-  src/pages/             one file per screen (Dashboard, Applicants, Pipeline, ...)
-  src/components/        cards, drawers, modals shared across pages
+supabase/                 the database — start at supabase/README.md
+  migrations/0001_...       tables, and the two rules the database itself enforces
+  migrations/0002_...       read-only RLS, and every write as a function
+  migrations/0003_...       the demo dataset, and demo_reset() to restore it
+packages/core/            the shared domain — read this first
+  src/types.ts            domain types both surfaces use
+  src/fit.ts              the fit engine, one copy, two voices
+packages/data/            the Supabase layer both apps import
+  src/queries.ts          loadCatalog / loadStudentWorkspace / loadCompanyWorkspace
+  src/mutations.ts        every write, all of them RPCs
+  src/map.ts              rows to core types, plus the shared time formatting
+student-app/              the working student app
+  src/lib/db.ts           the client, and which student is signed in
+  src/data/catalog.ts     companies and jobs, loaded once at boot
+  src/lib/fit.ts          student-voiced adapter over packages/core
+  src/store.tsx           reducer, plus the write each action fires
+  src/screens/            one file per flow
+company-dashboard/        the working company dashboard
+  src/lib/db.ts           the client, and which company is signed in
+  src/data/store.tsx      the workspace, the polling, and the selection gate
+  src/data/candidates.ts  applicant rows derived by running computeFit()
+  src/lib/fit.ts          company-voiced adapter over packages/core
+  src/pages/              one file per screen (Dashboard, Applicants, Pipeline, ...)
 ```
 
 Read [`CLAUDE.md`](CLAUDE.md) first — especially **§3 Hard rules** and **§5 The fit score**.
@@ -134,19 +181,23 @@ Those are the decisions everything else follows from.
 
 ## Next up
 
-1. **Persistence** — state is in memory, so a reload resets the demo.
-2. **Backend** — schema, auth, and the selection gate. See `CLAUDE.md` §9. The rule to
-   enforce at the database level: a conversation cannot exist without a `selections` row.
-   The API should return `FitScore` from `packages/core` unchanged, so neither UI moves.
-3. **One selection, both apps** — selecting in the dashboard still only updates its own
-   state. Unlocking the student's inbox for real needs the backend above.
+1. **Auth** — one student and one company are hard-coded. RLS is read-for-everyone until
+   there is a signed-in user to scope it to; every query is already scoped by id.
+2. **Real AI** — resume parsing, the fit reasoning and the resume summary are still
+   generated from the profile rather than by a model. The shapes will not move: the API
+   returns `FitScore` from `packages/core` unchanged.
+3. **Realtime instead of polling** — both apps poll every four seconds. Supabase realtime
+   on `conversations` and `applications` would make it instant.
 4. **Next.js for the dashboard** — `CLAUDE.md` §10 calls for it; this is still a Vite SPA.
 
-## Known gaps in the student app
+## Known gaps
 
-Things that look interactive but aren't yet — worth knowing before you demo it:
+Things that look interactive but are not wired up yet — worth knowing before you demo it:
 
-- No persistence; a reload resets everything.
+- No authentication; the student and the company are both hard-coded.
+- Profile edits in the student app stay local; they are not written back to Supabase.
+- Posting a job from the dashboard modal does not create a row yet.
 - Resume upload is simulated — no file is actually read.
-- The "Add a photo" control on onboarding does nothing.
+- Impressions and apply rate on the analytics page are illustrative. Every other number
+  on that page is derived from real rows.
 - No typing indicator in chat, and the company never auto-replies.

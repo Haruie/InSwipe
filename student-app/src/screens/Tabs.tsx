@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { getJob } from '../data/jobs';
-import { getCompany } from '../data/companies';
+import { allJobs, getCompany, getJob } from '../data/catalog';
 import { computeFit, learningList } from '../lib/fit';
-import { allJobs } from '../store';
 import { AppHeader } from '../components/AppHeader';
 import { Field } from './Onboarding';
 import { AddProjectSheet } from './ManualFlow';
+import { ResetDemoModal } from '../components/ResetDemoModal';
 import {
   Button,
   CompanyLogo,
@@ -268,8 +267,9 @@ export function Saved() {
 /* ------------------------------- Profile ------------------------------- */
 
 export function Profile() {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, logout } = useStore();
   const [addingProject, setAddingProject] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const s = state.student;
   const editing = state.profileEditing;
   const set = (patch: Partial<typeof s>) => dispatch({ type: 'updateStudent', patch });
@@ -292,11 +292,12 @@ export function Profile() {
   const nextSuggestion = checklist.find(([ok]) => !ok)?.[1];
 
   const appliedIds = state.applications.map((a) => a.jobId);
-  const gaps = learningList(s, appliedIds, allJobs).slice(0, 3);
+  const gaps = learningList(s, appliedIds, allJobs()).slice(0, 3);
 
   return (
     <div className="flex h-full flex-col">
       <AddProjectSheet open={addingProject} onClose={() => setAddingProject(false)} />
+      <ResetDemoModal open={resetOpen} onClose={() => setResetOpen(false)} />
       <div className="flex-1 overflow-y-auto no-scrollbar pb-4">
         <div className="relative h-[104px]" style={{ background: 'linear-gradient(135deg,#4F46E5,#7C6CF5)' }}>
           <button
@@ -507,6 +508,32 @@ export function Profile() {
             </div>
           )}
         </Section>
+
+        <div className="mt-5 px-5">
+          <button
+            onClick={logout}
+            className="press w-full rounded-lg border border-line bg-white py-3 text-[13.5px] font-semibold text-ink-500 shadow-subtle"
+          >
+            Sign out
+          </button>
+          <p className="mt-2 text-center text-[12px] text-ink-300">
+            Signed in as {s.email || s.name}
+          </p>
+        </div>
+
+        {/* Demo tooling: a run-through uses the deck up, so this puts it back. */}
+        <div className="mt-3 px-5">
+          <button
+            onClick={() => setResetOpen(true)}
+            className="press w-full rounded-lg border border-dashed border-line bg-white py-3 text-[13.5px] font-semibold text-primary-500"
+          >
+            Reset demo data
+          </button>
+          <p className="mt-2 text-center text-[12px] leading-[1.45] text-ink-300">
+            Puts every job back in the deck and clears applications, selections and
+            chats — here and on the company dashboard.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDeck, useStore } from '../store';
-import { getJob } from '../data/jobs';
-import { getCompany } from '../data/companies';
+import { getCompany, getJob } from '../data/catalog';
 import { skillSplit } from '../lib/fit';
 import type { FitScore, Job } from '../data/types';
 import { AppHeader } from '../components/AppHeader';
 import {
   Button,
   Chip,
+  CompanyCover,
   CompanyLogo,
   EmptyState,
   FitPill,
@@ -348,7 +348,7 @@ export function JobCard({
       className="relative flex h-full flex-col overflow-hidden rounded-xl bg-white shadow-deck"
     >
       {/* image — 50% of card */}
-      <div className="relative h-1/2 shrink-0" style={{ background: company.gradient }}>
+      <CompanyCover company={company} className="h-1/2 shrink-0">
         <div
           className="absolute inset-0"
           style={{ background: 'linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.28) 100%)' }}
@@ -361,7 +361,7 @@ export function JobCard({
             <CompanyLogo initial={company.initial} color={company.color} size={44} />
           </div>
         </div>
-      </div>
+      </CompanyCover>
 
       {/* content */}
       <div className="flex flex-1 flex-col px-4 pb-4 pt-9">

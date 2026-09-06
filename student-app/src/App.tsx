@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import type { StudentWorkspace } from '@inswipe/data';
 import { StoreProvider, useStore } from './store';
 import { PhoneFrame, HomeIndicator, StatusBar } from './components/PhoneFrame';
 import { BottomNav } from './components/BottomNav';
@@ -13,7 +14,7 @@ import { FitSheet, NoteSheet } from './screens/Sheets';
 import { Applications, Profile, Saved } from './screens/Tabs';
 import { Chat, Inbox } from './screens/Messaging';
 import { ApplicationDetail, CompanyProfile, LearningList, Notifications } from './screens/Detail';
-import { AppliedModal, DemoControl, SelectionOverlay } from './screens/Overlays';
+import { AppliedModal, SelectionOverlay } from './screens/Overlays';
 
 /** Screens that paint their own status bar / full-bleed background. */
 const SELF_CHROMED = new Set([
@@ -94,8 +95,11 @@ function Router() {
   }
 }
 
+/** How often the app asks Supabase whether anything changed on the company's side. */
+const SYNC_INTERVAL_MS = 4000;
+
 function Shell() {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, sync } = useStore();
 
   // auto-dismiss the toast
   useEffect(() => {
@@ -103,6 +107,18 @@ function Shell() {
     const id = setTimeout(() => dispatch({ type: 'patch', patch: { toast: null } }), 1500);
     return () => clearTimeout(id);
   }, [state.toast, dispatch]);
+
+  /**
+   * The other half of the product is a separate app writing to the same database. Poll
+   * it, so a recruiter selecting this student lands here without a reload — that is what
+   * turns the inbox padlock into a conversation while the demo is running.
+   */
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') sync().catch(() => {});
+    }, SYNC_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [sync]);
 
   return (
     <>
@@ -124,14 +140,13 @@ function Shell() {
           <SelectionOverlay />
         </div>
       </PhoneFrame>
-      <DemoControl />
     </>
   );
 }
 
-export default function App() {
+export default function App({ workspace }: { workspace: StudentWorkspace }) {
   return (
-    <StoreProvider>
+    <StoreProvider workspace={workspace}>
       <Shell />
     </StoreProvider>
   );

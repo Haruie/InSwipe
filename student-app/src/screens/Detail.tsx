@@ -1,10 +1,10 @@
-import { allJobs, useStore } from '../store';
-import { getJob } from '../data/jobs';
-import { getCompany } from '../data/companies';
+import { useStore } from '../store';
+import { allJobs, getCompany, getJob } from '../data/catalog';
 import { computeFit, learningList } from '../lib/fit';
 import { HomeIndicator, StatusBar } from '../components/PhoneFrame';
 import {
   Button,
+  CompanyCover,
   CompanyLogo,
   FitBar,
   FitPill,
@@ -206,7 +206,7 @@ function TimelineRow({
 export function CompanyProfile() {
   const { state, dispatch } = useStore();
   const company = getCompany(state.companyId!);
-  const openRoles = allJobs.filter((j) => j.companyId === company.id);
+  const openRoles = allJobs().filter((j) => j.companyId === company.id);
 
   return (
     <div className="flex h-full flex-col bg-canvas">
@@ -215,14 +215,14 @@ export function CompanyProfile() {
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-5">
-        <div className="relative h-[150px]" style={{ background: company.gradient }}>
+        <CompanyCover company={company} className="h-[150px]">
           <button
             onClick={() => dispatch({ type: 'back' })}
             className="press absolute left-5 top-[58px] flex h-9 items-center gap-1.5 rounded-full bg-black/25 px-3 text-[12.5px] font-semibold text-white backdrop-blur"
           >
             <IconBack size={16} /> Back to job
           </button>
-        </div>
+        </CompanyCover>
 
         <div className="-mt-8 px-5">
           <div className="rounded-xl bg-white p-1.5 shadow-card" style={{ width: 'fit-content' }}>
@@ -343,7 +343,7 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 export function LearningList() {
   const { state, dispatch } = useStore();
   const appliedIds = state.applications.map((a) => a.jobId);
-  const items = learningList(state.student, appliedIds, allJobs);
+  const items = learningList(state.student, appliedIds, allJobs());
 
   const counts = {
     todo: items.filter((i) => (state.learn[i.skill] ?? 'todo') === 'todo').length,

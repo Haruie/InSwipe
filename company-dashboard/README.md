@@ -2,13 +2,15 @@
 
 The company web dashboard: post roles, review a ranked list of everyone who applied, and
 see why the AI thinks each candidate fits. Vite + React + TypeScript + Tailwind CSS v4,
-mock data only, no backend.
+reading and writing the same Supabase database as the student app.
 
 Fit scores come from [`packages/core`](../packages/core) — the same engine the student app
-runs. Nothing on this side hand-sets a percentage.
+runs, over the same profile rows. Nothing on this side hand-sets a percentage, and nothing
+stores one.
 
 ```bash
 npm install
+cp .env.example .env   # then paste the project's publishable (anon) key
 npm run dev
 ```
 
@@ -30,14 +32,28 @@ change roles).
 
 ## How the data layer works
 
-`src/data/students.ts` holds each applicant as a real `Student` — the same shape the
-student app writes. It carries no scores. `src/data/mock.ts` runs `computeFit(student, job)`
-over those profiles and builds the rows the pages render, then ranks by the result. Edit a
-student's skills or projects and the score, the ordering, the "Fits" and "Lacks" rows and
-the breakdown bars all move together.
+Nothing in `src/` holds a company, job, student or conversation. `src/data/store.tsx`
+loads TechNova's workspace from Supabase through [`packages/data`](../packages/data)
+before the app mounts, then re-polls every four seconds so a student applying in the other
+app appears here without a reload.
+
+`src/data/candidates.ts` runs `computeFit(student, job)` over each application's profile
+and builds the rows the pages render, ranking by the result **within each role** — fit is
+always scoped to a job (CLAUDE.md rule 5). Change a student's skills in the database and
+the score, the ordering, the "Fits" and "Lacks" rows and the breakdown bars all move
+together, here and in the student app.
 
 `src/lib/fit.ts` configures the shared engine for this audience: company voice, recruiter
 hints, and more rows than a phone card shows.
+
+### Selecting a candidate is one database write
+
+`select_candidate()` writes the `selections` row, the conversation hanging off it and the
+company's opening message in a single transaction. It is the only code path that can
+create either row: no table on this project carries a write policy, so a conversation
+without a selection is impossible rather than merely discouraged (CLAUDE.md §3, rule 2).
+
+The Inbox has no seeded threads. Every conversation on that page came from a selection.
 
 ## Known gaps against the product spec
 
@@ -45,11 +61,13 @@ hints, and more rows than a phone card shows.
   Works fine standalone, but would need a migration to match the spec's stack exactly.
 - **Styling is half Tailwind, half inline `style` objects** — a leftover from the Figma Make
   export. Worth normalising before this grows.
-- **No selection → inbox wiring across apps.** Selecting a candidate here updates local
-  state and drops them into this app's own Inbox; it doesn't reach into `student-app`'s
-  data to actually unlock that student's inbox, since the two apps don't share a backend
-  yet (see `CLAUDE.md` §9).
-- **Only the Frontend Engineering Intern role has applicants.** The other two postings show
-  counts but have no `Applicant` rows behind them.
+- **No authentication.** The dashboard is hard-coded to `technova` in `src/lib/db.ts`, and
+  RLS is read-for-everyone until there is a signed-in recruiter to scope it to.
+- **Posting a job doesn't create a row.** The multi-step form and its live preview work;
+  the final submit is not wired to Supabase yet.
+- **Only Frontend Engineering Intern starts with applicants.** Product Design and Growth
+  Marketing are live postings with empty pools — apply to one from the student app and it
+  fills up.
+- **Polling, not realtime.** Four-second interval; Supabase realtime would make it instant.
 - Resume viewing, ATS/Slack/Calendar integrations, and email delivery are all
   simulated — no files are read, no third-party accounts are ever contacted.

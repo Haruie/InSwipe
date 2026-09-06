@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Candidate } from "../data/mock";
+import type { Candidate } from "../data/candidates";
 import FitScoreRing from "./FitScoreRing";
 
 interface Props {

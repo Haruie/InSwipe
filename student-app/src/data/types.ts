@@ -1,15 +1,12 @@
 /**
- * Domain types live in @inswipe/core so the company dashboard reads the same shapes.
- * This file re-exports them, plus the few types only the student app has.
+ * Domain types live in @inswipe/core so the company dashboard reads the same shapes,
+ * and the row-backed extensions live in @inswipe/data. This file re-exports both, so
+ * screens can keep importing from one place.
  */
 export * from '@inswipe/core';
-
-export interface Notification {
-  id: string;
-  kind: 'selected' | 'message' | 'status' | 'view' | 'matches';
-  title: string;
-  body: string;
-  time: string;
-  group: string;
-  unread: boolean;
-}
+export type {
+  ApplicationRecord,
+  JobListing,
+  NotificationRecord,
+  StudentRecord,
+} from '@inswipe/data';

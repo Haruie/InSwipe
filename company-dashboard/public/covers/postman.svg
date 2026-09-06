@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400" role="img" aria-label="Postman">
+  <title>Postman</title>
+  <defs>
+    <linearGradient id="bg-postman" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF6C37"/>
+      <stop offset="60%" stop-color="#FF9A5A"/>
+      <stop offset="100%" stop-color="#FFC49B"/>
+    </linearGradient>
+    <radialGradient id="glow-postman" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid-postman" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0v40" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="800" height="400" fill="url(#bg-postman)"/>
+  <rect width="800" height="400" fill="url(#grid-postman)"/>
+  <ellipse cx="129" cy="110" rx="330" ry="250" fill="url(#glow-postman)"/>
+
+  <g transform="translate(-209 -5) rotate(3 420 200)"
+     color="#ffffff" fill="none" stroke="currentColor" stroke-width="2.5"
+     stroke-linejoin="round" opacity="0.34">
+<rect x="418" y="74" width="330" height="238" rx="20"/>
+    <path d="M418 122h330"/>
+    <circle cx="448" cy="98" r="6" fill="currentColor" stroke="none"/>
+    <circle cx="470" cy="98" r="6" fill="currentColor" stroke="none"/>
+    <circle cx="492" cy="98" r="6" fill="currentColor" stroke="none"/>
+    <path d="M452 158l30 26-30 26"/>
+    <path d="M498 210h86"/>
+    <path d="M452 252h242"/>
+    <path d="M452 284h158"/>
+  </g>
+
+  <path d="M0 400L800 248V400z" fill="#000000" fill-opacity="0.10"/>
+</svg>

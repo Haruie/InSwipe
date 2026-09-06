@@ -1,13 +1,17 @@
 # @inswipe/core
 
-Domain types and the fit engine. The student app and the company dashboard both read this
-package and nothing else in common — it is the only place a `Student`, a `Job` or a
-`FitScore` is defined.
+Domain types and the fit engine. It is the only place a `Student`, a `Job` or a `FitScore`
+is defined, and it is deliberately ignorant of where those rows come from: nothing here
+touches a database, and no score is ever stored.
+
+Its sibling [`@inswipe/data`](../data) owns the other half — Supabase holds the runtime
+data and returns rows, this package says what they mean and computes fit from them.
 
 Consumed as TypeScript source through a Vite alias and a `tsconfig` path in each app, so
 there is no build step and no `npm install` here. Both apps list `../packages/core/src` in
-their `tsconfig` `include`, so `npm run typecheck` in either one checks this package too. When the backend lands, the
-API should return `FitScore` from here unchanged and neither UI has to move.
+their `tsconfig` `include`, so `npm run typecheck` in either one checks this package too.
+When real AI replaces the heuristic, it should return `FitScore` from here unchanged and
+neither UI has to move.
 
 ## What's in it
 

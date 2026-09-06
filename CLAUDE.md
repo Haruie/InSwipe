@@ -2,19 +2,25 @@
 
 > AI-powered internship matchmaking. Students swipe. Companies choose. The AI explains why.
 
-**Status:** Student app and company dashboard both built and running on mock data, over a
-shared fit engine in `packages/core/`. Backend to follow.
+**Status:** Student app and company dashboard both built and running against **one shared
+Supabase database**, over a shared fit engine in `packages/core/`. Auth and real AI to follow.
 **Products:** A student mobile app and a company web dashboard. Two surfaces, one brand.
 
 | Where | What |
 |---|---|
+| `supabase/` | Schema, RLS, the write API, and the demo dataset. Supabase owns runtime data |
 | `packages/core/` | Shared domain types and the fit engine — the one copy both apps read |
-| `student-app/` | The working student app — Vite + React + TS + Tailwind, mock data |
-| `company-dashboard/` | The working company dashboard — Vite + React + TS + Tailwind, mock data |
+| `packages/data/` | The Supabase layer both apps import: queries, mutations, row mappers |
+| `student-app/` | The working student app — Vite + React + TS + Tailwind |
+| `company-dashboard/` | The working company dashboard — Vite + React + TS + Tailwind |
 | `figma-build-guide.md` | Paste-by-paste Figma Make prompts |
 | `figma-prompts.md` | Full screen-by-screen design spec |
 | Student designs | https://dun-rival-31434366.figma.site |
 | Company designs | https://chisel-thumb-04330911.figma.site |
+
+**Division of labour:** `packages/core` owns the domain types and the fit engine — it never
+talks to a database, and no fit score is ever stored. Supabase owns runtime data — it never
+computes a score. `packages/data` is the seam between them.
 
 ---
 
@@ -71,9 +77,12 @@ These are invariants. Do not violate them without an explicit decision to change
    evaluate a ranked list. The company product is a decision tool, not a mirror of the
    student app.
 2. **The inbox is gated on selection.** No conversation can exist without a company
-   having selected that student for that job. Enforce this at the database level, not
-   in application code. It is the single rule the whole product hangs on.
-3. **The company sends the first message.** Students cannot open a thread.
+   having selected that student for that job. It is the single rule the whole product
+   hangs on. **Enforced:** `conversations.selection_id` is `NOT NULL UNIQUE` referencing
+   `selections`, and no table carries a write policy — `select_candidate()` is the only
+   code path that can create either row, and it creates both in one transaction.
+3. **The company sends the first message.** Students cannot open a thread. **Enforced:**
+   a trigger on `messages` rejects the first row in any thread unless it is from the company.
 4. **Never show a score without an explanation.** Every percentage has a path to the
    reasoning behind it. AI is never a black box (see §5).
 5. **Fit is always scoped to a job.** There is no global "student score". A candidate
@@ -173,10 +182,12 @@ Inbox shows a padlock instead of a badge until the student's first selection.
 
 ### Discover
 
-A card stack ordered best-fit-first, with the ordering stated in the UI. Each card
-carries company, role, fit percentage, location and work mode, stipend, duration, and a
-skills row where **met requirements are green tags and missing ones are orange outline
-tags** — the fit/gap idea is legible before the student taps in.
+A card stack ordered best-fit-first, with the ordering stated in the UI. The top half of
+each card is the company's cover image (`companies.cover_url`, with `gradient` painted
+underneath as the fallback — see `supabase/README.md`); the bottom half carries company,
+role, fit percentage, location and work mode, stipend, duration, and a skills row where
+**met requirements are green tags and missing ones are orange outline tags** — the
+fit/gap idea is legible before the student taps in.
 
 - **Swipe right / Apply** → opens the note sheet (below)
 - **Swipe left / Pass**
@@ -350,9 +361,18 @@ client.
 
 **Company dashboard:** Next.js + React + TypeScript + Tailwind.
 
-**Backend:** undecided. Supabase is a strong candidate — Postgres with row-level
-security maps cleanly onto the selection gate, and auth, file storage for resumes, and
-realtime for chat all come in the box.
+**Backend:** Supabase. Postgres with row-level security maps cleanly onto the selection
+gate, and auth, file storage for resumes and realtime for chat all come in the box.
+Schema, the write API and the demo dataset live in `supabase/migrations/`.
+
+Reads are public and every write is a `security definer` function granted to `anon`. That
+is what makes the selection gate airtight rather than merely conventional. There is no
+authentication yet: one student (`anika-sharma`) and one company (`technova`) are
+hard-coded in each app's `src/lib/db.ts`, and every query is already scoped by id, so
+adding auth is a change of constant plus a `where` clause in the policies.
+
+Neither app holds a second copy of anything. Both poll every four seconds, which is what
+makes the cross-app flow visible during a demo; realtime would replace polling later.
 
 **AI:** Claude for resume parsing, fit reasoning and summarisation. Embeddings for
 semantic skill matching so *React* relates to *frontend development* without exact
@@ -360,12 +380,28 @@ string equality.
 
 ### Phasing
 
-1. Figma designs for both products
-2. Company web dashboard with mock data
-3. Student app with mock data
-4. Backend: schema, auth, the selection gate
-5. AI: resume parsing, then fit scoring
-6. Chat
+1. ~~Figma designs for both products~~
+2. ~~Company web dashboard with mock data~~
+3. ~~Student app with mock data~~
+4. ~~Supabase: schema, the selection gate, one dataset both apps read~~ · auth still to do
+5. AI: resume parsing, then fit scoring, then the resume summary
+6. ~~Chat~~ · works end to end; realtime instead of polling still to do
+
+### Restoring the demo
+
+A run-through uses the dataset up — jobs swiped away, candidates already selected — so the
+reset is a button in both apps, not just a script:
+
+- **Student app** → Profile tab → *Reset demo data*
+- **Company dashboard** → Settings → Demo → *Reset demo*
+- Or `node scripts/demo.mjs reset` from the repo root, or `select public.demo_reset();`
+  in the SQL editor
+
+All four run the same function — the seed and the reset in one, so there is nothing to keep
+in sync. Both confirmations offer to sign out as well, for a run-through that starts from
+onboarding. Whichever surface triggers it, **both apps reload onto the restored data**: the
+reset rebuilds every runtime row, and nothing else ever deletes an application, so an
+application id disappearing from a poll is how the other app knows to reload itself.
 
 ---
 
@@ -388,13 +424,16 @@ Quality references: Linear's precision, Stripe's restraint, Notion's warmth.
 
 1. Read existing code before changing it. Don't rewrite what works.
 2. Reuse components. No duplicates. No giant page-sized components.
-3. Keep mock data in a separate layer, never inline in components.
-4. Don't add backend dependencies during the design and mock-data phases.
+3. Runtime data lives in Supabase, reached only through `packages/data`. Never inline a
+   company, job, student, application or conversation in a component or a data file.
+4. Fit scores are computed, never stored. If you find yourself writing a percentage into a
+   row or a component, you have taken a wrong turn.
 5. Don't change the design direction without discussing it first.
 6. Use TypeScript properly. Avoid unnecessary dependencies.
 7. Respect the hard rules in §3 — especially the inbox gate.
-8. Use realistic mock data. Never `Company 1`, `Test Job`, or lorem ipsum.
-   Real-sounding companies, Indian salary ranges and cities, plausible student profiles.
+8. Use realistic data. Never `Company 1`, `Test Job`, or lorem ipsum. Real-sounding
+   companies, Indian salary ranges and cities, plausible student profiles. New demo rows
+   belong in `supabase/migrations/0003_demo_dataset.sql` so a reset restores them.
 9. Make every interaction demonstrable. No placeholder screens.
 10. Every screen needs its loading, empty, error and success states designed.
 

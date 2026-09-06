@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@inswipe/core': path.resolve(__dirname, '../packages/core/src/index.ts'),
+      '@inswipe/data': path.resolve(__dirname, '../packages/data/src/index.ts'),
     },
   },
   server: { port: 5173 },

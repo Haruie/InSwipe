@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import type { Page } from "../App";
-import type { Candidate, Job } from "../data/mock";
-import { fitBand } from "../data/mock";
+import { fitBand } from "@inswipe/core";
+import type { Candidate } from "../data/candidates";
+import type { JobPosting as Job } from "../data/jobs";
+import { useDashboard } from "../data/store";
 import CandidateDrawer from "../components/CandidateDrawer";
 import SelectionModal from "../components/SelectionModal";
 import FitScoreRing from "../components/FitScoreRing";
@@ -12,8 +14,7 @@ interface Props {
   candidates: Candidate[];
   jobs: Job[];
   currentJob: Job;
-  onSelectCandidate: (id: string) => void;
-  onStageChange: (id: string, stage: Candidate["stage"]) => void;
+  onOpenConversation: (conversationId: string) => void;
 }
 
 // ── Filter chips ───────────────────────────────────────────
@@ -285,7 +286,8 @@ function EmptyApplicants({ filtered, onReset }: { filtered: boolean; onReset: ()
   );
 }
 
-export default function Applicants({ onNavigate, candidates, currentJob, onSelectCandidate, onStageChange }: Props) {
+export default function Applicants({ onNavigate, candidates, currentJob, onOpenConversation }: Props) {
+  const { company, select, changeStage } = useDashboard();
   const [drawerCandidate, setDrawerCandidate] = useState<Candidate | null>(null);
   const [selectionCandidate, setSelectionCandidate] = useState<Candidate | null>(null);
   const [resumeCandidate, setResumeCandidate] = useState<Candidate | null>(null);
@@ -342,13 +344,16 @@ export default function Applicants({ onNavigate, candidates, currentJob, onSelec
     if (c && !c.selected) setSelectionCandidate(c);
   };
 
-  const handleConfirmSelection = () => {
-    if (selectionCandidate) {
-      onSelectCandidate(selectionCandidate.id);
-      onStageChange(selectionCandidate.id, "In Conversation");
-      setSelectionCandidate(null);
-      setTimeout(() => onNavigate("inbox"), 400);
-    }
+  /**
+    * THE GATE (CLAUDE.md section 3, rule 2). One write creates the `selections` row, the
+    * conversation hanging off it and the company's opening message. Nothing here can
+    * open a thread on its own, and the student app sees it on its next poll.
+    */
+  const handleConfirmSelection = async (message?: string) => {
+    if (!selectionCandidate) return;
+    const conversationId = await select(selectionCandidate, message);
+    setSelectionCandidate(null);
+    onOpenConversation(conversationId);
   };
 
   // Inject section dividers for list view
@@ -577,7 +582,7 @@ export default function Applicants({ onNavigate, candidates, currentJob, onSelec
           candidate={drawerCandidate}
           onClose={() => setDrawerCandidate(null)}
           onSelect={id => { handleSelect(id); setDrawerCandidate(null); }}
-          onNotFit={id => { onStageChange(id, "Reviewed"); setDrawerCandidate(null); }}
+          onNotFit={id => { const c = candidates.find(x => x.id === id); if (c) void changeStage(c, "Reviewed"); setDrawerCandidate(null); }}
           onViewResume={() => setResumeCandidate(drawerCandidate)}
         />
       )}
@@ -595,6 +600,8 @@ export default function Applicants({ onNavigate, candidates, currentJob, onSelec
       {selectionCandidate && (
         <SelectionModal
           candidate={selectionCandidate}
+          jobTitle={currentJob.title}
+          companyName={company.name}
           onConfirm={handleConfirmSelection}
           onCancel={() => setSelectionCandidate(null)}
         />

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400" role="img" aria-label="Flipkart">
+  <title>Flipkart</title>
+  <defs>
+    <linearGradient id="bg-flipkart" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1B5BC4"/>
+      <stop offset="60%" stop-color="#2874F0"/>
+      <stop offset="100%" stop-color="#93BDFB"/>
+    </linearGradient>
+    <radialGradient id="glow-flipkart" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid-flipkart" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0v40" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="800" height="400" fill="url(#bg-flipkart)"/>
+  <rect width="800" height="400" fill="url(#grid-flipkart)"/>
+  <ellipse cx="294" cy="76" rx="330" ry="250" fill="url(#glow-flipkart)"/>
+
+  <g transform="translate(-182 -17) rotate(-5 420 200)"
+     color="#ffffff" fill="none" stroke="currentColor" stroke-width="2.5"
+     stroke-linejoin="round" opacity="0.34">
+<path d="M452 178l128-52 128 52v128l-128 52-128-52z"/>
+    <path d="M452 178l128 52 128-52M580 230v128"/>
+    <path d="M544 144v66l36-14 36 14v-66"/>
+    <path d="M700 92h58M729 63v58"/>
+  </g>
+
+  <path d="M0 400L800 248V400z" fill="#000000" fill-opacity="0.10"/>
+</svg>

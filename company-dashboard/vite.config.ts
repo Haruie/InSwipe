@@ -28,6 +28,7 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, './src'),
         '@inswipe/core': path.resolve(__dirname, '../packages/core/src/index.ts'),
+        '@inswipe/data': path.resolve(__dirname, '../packages/data/src/index.ts'),
       },
     },
     server: {

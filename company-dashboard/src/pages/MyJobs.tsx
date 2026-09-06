@@ -1,15 +1,14 @@
 import { useState } from "react";
 import type { Page } from "../App";
-import type { Job } from "../data/mock";
-import { locationLabel, stipendLabel } from "../data/mock";
+import type { JobPosting as Job } from "../data/jobs";
+import { useDashboard } from "../data/store";
+import { locationLabel, stipendLabel } from "../data/jobs";
 
 interface Props {
   onNavigate: (page: Page) => void;
   jobs: Job[];
   onOpenPostJob: () => void;
   onSelectJob: (id: string) => void;
-  onChangeJobStatus: (id: string, status: Job["status"]) => void;
-  onDuplicateJob: (id: string) => void;
 }
 
 const StatusBadge = ({ status }: { status: Job["status"] }) => {
@@ -130,7 +129,10 @@ function JobCard({ job, onNavigate, onSelectJob, onOpenPostJob, onChangeJobStatu
   );
 }
 
-export default function MyJobs({ onNavigate, jobs, onOpenPostJob, onSelectJob, onChangeJobStatus, onDuplicateJob }: Props) {
+export default function MyJobs({ onNavigate, jobs, onOpenPostJob, onSelectJob }: Props) {
+  const { changeJobStatus, duplicate } = useDashboard();
+  const onChangeJobStatus = (id: string, status: Job["status"]) => void changeJobStatus(id, status);
+  const onDuplicateJob = (id: string) => void duplicate(id);
   const [filter, setFilter] = useState<"All" | "Active" | "Paused" | "Closed">("All");
   const filtered = filter === "All" ? jobs : jobs.filter(j => j.status === filter);
 

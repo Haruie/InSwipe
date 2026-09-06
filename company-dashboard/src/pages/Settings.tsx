@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ResetDemoModal from "../components/ResetDemoModal";
 
 function Toggle({ defaultOn = true }: { defaultOn?: boolean }) {
   const [on, setOn] = useState(defaultOn);
@@ -241,6 +242,50 @@ function TeamSection() {
   );
 }
 
+/* ─── Demo ───────────────────────────────────────────────────────────────── */
+
+/**
+ * The only control on this page that writes to the database. A run-through uses the
+ * dataset up — jobs swiped away, candidates already selected, threads already open — so
+ * this puts it back, here and in the student app at the same time.
+ */
+function DemoSection() {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  return (
+    <>
+      <div className="rounded-[20px] border anim-fade-up" style={{ background: "#FFFFFF", borderColor: "#E8E8EF", boxShadow: "0 1px 3px rgba(15,17,23,0.06)", animationDelay: "0.24s" }}>
+        <div className="px-6 py-4 flex items-center gap-2" style={{ borderBottom: "1px solid #E8E8EF" }}>
+          <h3 className="text-[14px] font-semibold" style={{ color: "#0F1117" }}>Demo</h3>
+          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: "#EEF0FF", color: "#4F46E5" }}>Presentation only</span>
+        </div>
+        <div className="px-6 py-5 flex items-start gap-6">
+          <div className="flex-1">
+            <div className="text-[13px] font-medium" style={{ color: "#374151" }}>Reset demo data</div>
+            <p className="text-[12.5px] leading-relaxed mt-1" style={{ color: "#9CA3AF" }}>
+              Restores the dataset a presentation starts from — every job, application,
+              selection and conversation, on this dashboard and in the student app. Both
+              reload onto the restored data.
+            </p>
+          </div>
+          <button
+            onClick={() => setConfirmOpen(true)}
+            className="btn-press flex items-center gap-2 px-4 py-2.5 rounded-[10px] text-[13px] font-semibold flex-shrink-0 border"
+            style={{ background: "#EEF0FF", borderColor: "#4F46E5", color: "#4F46E5" }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" />
+            </svg>
+            Reset demo
+          </button>
+        </div>
+      </div>
+
+      {confirmOpen && <ResetDemoModal onClose={() => setConfirmOpen(false)} />}
+    </>
+  );
+}
+
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 
 export default function Settings() {
@@ -283,6 +328,8 @@ export default function Settings() {
           ))}
         </div>
       </div>
+
+      <DemoSection />
     </div>
   );
 }

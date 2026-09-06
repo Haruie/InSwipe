@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400" role="img" aria-label="Nexora Labs">
+  <title>Nexora Labs</title>
+  <defs>
+    <linearGradient id="bg-nexora" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="55%" stop-color="#7C6CF5"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+    <radialGradient id="glow-nexora" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid-nexora" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0v40" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="800" height="400" fill="url(#bg-nexora)"/>
+  <rect width="800" height="400" fill="url(#grid-nexora)"/>
+  <ellipse cx="297" cy="103" rx="330" ry="250" fill="url(#glow-nexora)"/>
+
+  <g transform="translate(-184 -2) rotate(5 420 200)"
+     color="#ffffff" fill="none" stroke="currentColor" stroke-width="2.5"
+     stroke-linejoin="round" opacity="0.34">
+<rect x="418" y="74" width="330" height="238" rx="20"/>
+    <path d="M418 122h330"/>
+    <circle cx="448" cy="98" r="6" fill="currentColor" stroke="none"/>
+    <circle cx="470" cy="98" r="6" fill="currentColor" stroke="none"/>
+    <circle cx="492" cy="98" r="6" fill="currentColor" stroke="none"/>
+    <path d="M452 158l30 26-30 26"/>
+    <path d="M498 210h86"/>
+    <path d="M452 252h242"/>
+    <path d="M452 284h158"/>
+  </g>
+
+  <path d="M0 400L800 248V400z" fill="#000000" fill-opacity="0.10"/>
+</svg>

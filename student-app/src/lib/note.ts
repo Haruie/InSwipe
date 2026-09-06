@@ -1,5 +1,5 @@
 import type { FitScore, Job, Student } from '../data/types';
-import { getCompany } from '../data/companies';
+import { getCompany } from '../data/catalog';
 
 const shortName = (full: string) => full.split('—')[0].trim();
 

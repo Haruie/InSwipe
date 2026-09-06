@@ -8,7 +8,8 @@
     "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
-      "@inswipe/core": ["../packages/core/src/index.ts"]
+      "@inswipe/core": ["../packages/core/src/index.ts"],
+      "@inswipe/data": ["../packages/data/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
@@ -20,5 +21,5 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "../packages/core/src"]
+  "include": ["src", "../packages/core/src", "../packages/data/src"]
 }

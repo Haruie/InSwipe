@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400" role="img" aria-label="Zepto">
+  <title>Zepto</title>
+  <defs>
+    <linearGradient id="bg-zepto" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6018D9"/>
+      <stop offset="60%" stop-color="#7B2FF7"/>
+      <stop offset="100%" stop-color="#C4A0FF"/>
+    </linearGradient>
+    <radialGradient id="glow-zepto" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid-zepto" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0v40" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="800" height="400" fill="url(#bg-zepto)"/>
+  <rect width="800" height="400" fill="url(#grid-zepto)"/>
+  <ellipse cx="273" cy="58" rx="330" ry="250" fill="url(#glow-zepto)"/>
+
+  <g transform="translate(-147 -7) rotate(5 420 200)"
+     color="#ffffff" fill="none" stroke="currentColor" stroke-width="2.5"
+     stroke-linejoin="round" opacity="0.34">
+<circle cx="600" cy="216" r="102"/>
+    <path d="M576 92h48M600 92V70M600 216v-66M600 216l52 30"/>
+    <path d="M600 128v14M688 216h-14M600 304v-14M512 216h14" stroke-linecap="round"/>
+    <path d="M690 118l24-24" stroke-linecap="round"/>
+  </g>
+
+  <path d="M0 400L800 248V400z" fill="#000000" fill-opacity="0.10"/>
+</svg>
