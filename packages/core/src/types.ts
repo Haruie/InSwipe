@@ -67,6 +67,12 @@ export interface Student {
   preferences: Preferences;
   resume?: { filename: string; size: string; updated: string };
   links: { github?: string; portfolio?: string; linkedin?: string };
+  /**
+   * The student's own photo, if they have added one. Empty until they do, and every
+   * avatar in both products falls back to `initial` on a tinted circle — a profile
+   * without a photo is a normal profile, not an incomplete one.
+   */
+  avatarUrl?: string;
 }
 
 export interface TeamMember {
@@ -187,4 +193,39 @@ export interface Conversation {
   unread: number;
   lastLabel: string;
   messages: Message[];
+}
+
+/* --------------------------------- resume parsing --------------------------------- */
+
+/** How sure the parser is about one extracted field. Anything but `high` is shown to the student to confirm. */
+export type FieldConfidence = 'high' | 'medium' | 'low';
+
+/**
+ * What reading a resume produces, before the student has confirmed any of it.
+ *
+ * The profile half is a subset of `Student` — the fields a resume can actually evidence.
+ * Name, email and photo are the student's own and are never overwritten by a parse, and
+ * preferences are asked for, not read: no resume states a stipend expectation.
+ *
+ * Nothing here is saved until the review screen is accepted (CLAUDE.md section 6).
+ */
+export interface ParsedResume {
+  profile: Pick<
+    Student,
+    | 'phone'
+    | 'university'
+    | 'degree'
+    | 'field'
+    | 'gradYear'
+    | 'skills'
+    | 'projects'
+    | 'experience'
+    | 'education'
+    | 'links'
+  > & { name: string; email: string };
+  /** Per-field, for the six the review screen lists as rows. */
+  confidence: Record<
+    'name' | 'email' | 'phone' | 'university' | 'degree' | 'gradYear',
+    FieldConfidence
+  >;
 }

@@ -175,6 +175,68 @@ export async function loadStudentWorkspace(
   };
 }
 
+/** One student's profile on its own, for callers that do not need their whole workspace. */
+export async function loadStudentProfile(
+  db: InswipeClient,
+  studentId: string,
+): Promise<StudentRecord> {
+  const result = await db.from('students').select('*').eq('id', studentId).single();
+  if (result.error) {
+    throw new Error(`Supabase: could not load student ${studentId} \u2014 ${result.error.message}`);
+  }
+  return toStudent(result.data as StudentRow);
+}
+
+/**
+ * What a signed-out app renders. There is no student yet, so there is no student row to
+ * read — but the catalogue exists, and the deck is simply every active posting. The
+ * splash and auth screens draw against this until an account is created or signed into.
+ *
+ * `student.id` being empty is the signal the rest of the app reads as "nobody is signed
+ * in": nothing polls, and nothing is written.
+ */
+export function emptyStudentWorkspace(catalog: Catalog): StudentWorkspace {
+  return {
+    student: {
+      id: '',
+      name: '',
+      initial: '·',
+      email: '',
+      phone: '',
+      university: '',
+      degree: '',
+      field: '',
+      gradYear: '',
+      skills: [],
+      projects: [],
+      experience: [],
+      education: { degree: '', university: '', period: '' },
+      preferences: {
+        roles: [],
+        workMode: 'Hybrid',
+        locations: [],
+        durationMonths: 3,
+        minStipend: 0,
+      },
+      links: {},
+      avatarColor: '#EEF0FF',
+      gpa: '',
+      location: '',
+      yearLabel: '',
+      resumeFile: '',
+    },
+    applications: [],
+    saved: [],
+    passed: [],
+    deckJobIds: catalog.jobs
+      .filter((job) => job.inStudentDeck && job.status === 'Active')
+      .map((job) => job.id),
+    conversations: [],
+    notifications: [],
+    inboxUnlocked: false,
+  };
+}
+
 /* ------------------------------- company side ------------------------------- */
 
 export interface ApplicantRecord {

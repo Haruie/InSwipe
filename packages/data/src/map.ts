@@ -145,6 +145,45 @@ export function toStudent(row: StudentRow): StudentRecord {
     location: row.location,
     yearLabel: row.year_label,
     resumeFile: row.resume_file,
+    avatarUrl: row.avatar_url || undefined,
+  };
+}
+
+/**
+ * The other direction: a profile the student has just edited, as the patch
+ * `save_student_profile()` takes. Only the fields a student can actually change are
+ * here — the id is the argument, and nothing else in the row is theirs to write.
+ */
+export function toStudentPatch(student: StudentRecord): Record<string, unknown> {
+  return {
+    name: student.name,
+    initial: student.initial,
+    email: student.email,
+    phone: student.phone,
+    university: student.university,
+    degree: student.degree,
+    field: student.field,
+    grad_year: student.gradYear,
+    skills: student.skills,
+    projects: student.projects,
+    experience: student.experience,
+    education: student.education,
+    preferences: student.preferences,
+    links: student.links,
+    avatar_url: student.avatarUrl ?? '',
+    resume: student.resume ?? null,
+    // the dashboard reads these off the same row, so they follow the profile rather
+    // than drift away from it
+    resume_file: student.resume?.filename ?? '',
+    // display facts the dashboard reads off the same row. They are sent back
+    // unchanged unless the row has never had one, so editing a profile cannot
+    // quietly rewrite how a recruiter sees it.
+    gpa: student.gpa,
+    location: student.location,
+    year_label: student.yearLabel || (student.gradYear ? `Graduating ${student.gradYear}` : ''),
+    // `resume` is the one field that can be emptied; a null value alone would be
+    // read as "not sent"
+    clear: student.resume ? [] : ['resume'],
   };
 }
 

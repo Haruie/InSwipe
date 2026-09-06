@@ -8,6 +8,7 @@ import CandidateDrawer from "../components/CandidateDrawer";
 import SelectionModal from "../components/SelectionModal";
 import FitScoreRing from "../components/FitScoreRing";
 import ResumeViewerModal from "../components/ResumeViewerModal";
+import CandidateAvatar from "../components/CandidateAvatar";
 
 interface Props {
   onNavigate: (page: Page) => void;
@@ -71,12 +72,7 @@ function CandidateCard({ candidate: c, onOpen, onSelect, onViewResume, delay }: 
       <div className="flex-1 min-w-0 p-5">
         {/* Name row */}
         <div className="flex items-start gap-3 mb-3">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-[13px] font-bold flex-shrink-0"
-            style={{ background: c.avatarColor, color: "#4F46E5" }}
-          >
-            {c.initials}
-          </div>
+          <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={40} radius={12} fontSize={13} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-[14px] font-semibold" style={{ color: "#0F1117" }}>{c.name}</span>
@@ -190,7 +186,7 @@ function CompareCard({ candidate: c, onOpen }: { candidate: Candidate; onOpen: (
       style={{ background: "#FFFFFF", borderColor: "#E8E8EF", boxShadow: "0 1px 3px rgba(15,17,23,0.06)" }}
     >
       <div className="flex items-start justify-between mb-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[13px] font-bold" style={{ background: c.avatarColor, color: "#4F46E5" }}>{c.initials}</div>
+        <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={40} radius={12} fontSize={13} />
         <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "#F7F7FB", color: "#9CA3AF" }}>#{c.rank}</span>
       </div>
       <div className="mb-1 text-[13px] font-semibold" style={{ color: "#0F1117" }}>{c.name}</div>

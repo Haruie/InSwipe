@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Candidate } from "../data/candidates";
 import { useDashboard } from "../data/store";
 import FitScoreRing from "./FitScoreRing";
+import CandidateAvatar from "./CandidateAvatar";
 
 interface Props {
   candidate: Candidate;
@@ -47,8 +48,8 @@ export default function SelectionModal({ candidate: c, jobTitle, companyName, on
           style={{ background: "#FFFFFF", border: "1px solid #E8E8EF", boxShadow: "0 8px 24px rgba(15,17,23,0.10)", maxHeight: "90vh" }}
         >
           <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold mx-auto mb-4" style={{ background: c.avatarColor, color: "#4F46E5" }}>
-              {c.initials}
+            <div className="mx-auto mb-4 w-14">
+              <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={56} radius={16} fontSize={20} />
             </div>
             <h2 className="text-[18px] font-semibold mb-1" style={{ color: "#0F1117" }}>Select {c.name}?</h2>
             <p className="text-[13px] leading-relaxed" style={{ color: "#6B7280" }}>
@@ -95,8 +96,8 @@ export default function SelectionModal({ candidate: c, jobTitle, companyName, on
                 </defs>
               </svg>
             </div>
-            <div className="anim-success w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold" style={{ background: c.avatarColor, color: "#4F46E5", boxShadow: "0 8px 24px rgba(79,70,229,0.15)", animationDelay: "0.2s" }}>
-              {c.initials}
+            <div className="anim-success" style={{ boxShadow: "0 8px 24px rgba(79,70,229,0.15)", animationDelay: "0.2s", borderRadius: 16 }}>
+              <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={64} radius={16} fontSize={20} />
             </div>
           </div>
           <div className="anim-fade-up" style={{ animationDelay: "0.6s" }}>

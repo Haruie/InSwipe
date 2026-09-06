@@ -308,11 +308,36 @@ export function CompanyLogo({
   );
 }
 
-export function Avatar({ initial, size = 32 }: { initial: string; size?: number }) {
+/**
+ * A student's face, or their initial. A profile without a photo is a normal profile,
+ * so the lettered circle is the resting state rather than a placeholder to apologise for.
+ */
+export function Avatar({
+  initial,
+  size = 32,
+  src,
+  className = '',
+}: {
+  initial: string;
+  size?: number;
+  src?: string;
+  className?: string;
+}) {
+  const box = { width: size, height: size };
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className={`inline-block shrink-0 rounded-full object-cover ${className}`}
+        style={box}
+      />
+    );
+  }
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-500"
-      style={{ width: size, height: size, fontSize: size * 0.4 }}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-500 ${className}`}
+      style={{ ...box, fontSize: size * 0.4 }}
     >
       {initial}
     </span>

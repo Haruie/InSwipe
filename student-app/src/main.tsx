@@ -1,9 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { loadCatalog, loadStudentWorkspace } from '@inswipe/data';
+import { emptyStudentWorkspace, loadCatalog, loadStudentWorkspace } from '@inswipe/data';
+import type { StudentWorkspace } from '@inswipe/data';
 import App from './App';
 import { setCatalog } from './data/catalog';
-import { DEMO_STUDENT_ID, db } from './lib/db';
+import { db } from './lib/db';
+import { clearSession, readSession } from './lib/session';
 import './index.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
@@ -17,7 +19,18 @@ async function bootstrap() {
   const catalog = await loadCatalog(db);
   setCatalog(catalog);
 
-  const workspace = await loadStudentWorkspace(db, DEMO_STUDENT_ID, catalog);
+  // Whoever was signed in last, if anyone. A session can outlive its account — a demo
+  // reset rebuilds the dataset and takes accounts created during the run-through with
+  // it — so a student id that no longer resolves signs out rather than failing to boot.
+  const session = readSession();
+  let workspace: StudentWorkspace = emptyStudentWorkspace(catalog);
+  if (session) {
+    try {
+      workspace = await loadStudentWorkspace(db, session.studentId, catalog);
+    } catch {
+      clearSession();
+    }
+  }
 
   root.render(
     <React.StrictMode>

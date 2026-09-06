@@ -4,11 +4,60 @@
  * means no client, present or future, can open a conversation without a selection.
  */
 import type { InswipeClient } from './client';
+import { toStudentPatch, type StudentRecord } from './map';
 import type { PipelineStage } from './rows';
 
 function unwrap<T>(result: { data: T; error: { message: string } | null }, what: string): T {
   if (result.error) throw new Error(`Supabase: ${what} failed — ${result.error.message}`);
   return result.data;
+}
+
+/* ---------------------------------- accounts ---------------------------------- */
+
+/**
+ * Signing up. Returns the id of the student the app then runs as — a real row, not the
+ * demo one. Idempotent on email, so a double-submitted form returns the same account.
+ *
+ * There is no password here on purpose: the demo has no authentication yet
+ * (CLAUDE.md section 10) and storing a credential it cannot protect would be worse
+ * than storing none. See `supabase/migrations/0004_accounts_and_profile.sql`.
+ */
+export async function createStudentAccount(
+  db: InswipeClient,
+  input: { name: string; email: string },
+): Promise<string> {
+  return unwrap(
+    await db.rpc('create_student', { p_name: input.name, p_email: input.email }),
+    'create_student',
+  ) as string;
+}
+
+/** Signing back in. Null when no account has that email. */
+export async function signInStudent(db: InswipeClient, email: string): Promise<string | null> {
+  return unwrap(await db.rpc('sign_in_student', { p_email: email }), 'sign_in_student') as
+    | string
+    | null;
+}
+
+/**
+ * The profile, saved. Everything a student can change about themselves goes through
+ * here — onboarding steps, the profile tab, a photo — so an edit survives the next poll
+ * instead of being replaced by the row it was edited from.
+ *
+ * No fit score is written and none can be: the score is computed from what this call
+ * stores (CLAUDE.md section 12, rule 4).
+ */
+export async function saveStudentProfile(
+  db: InswipeClient,
+  student: StudentRecord,
+): Promise<void> {
+  unwrap(
+    await db.rpc('save_student_profile', {
+      p_student_id: student.id,
+      p_patch: toStudentPatch(student),
+    }),
+    'save_student_profile',
+  );
 }
 
 /* -------------------------------- student side -------------------------------- */

@@ -1,8 +1,13 @@
 import { createInswipeClient } from '@inswipe/data';
 
 /**
- * The demo has one student. When authentication lands this becomes the signed-in user,
- * and nothing else in the app has to change — every query is already scoped by id.
+ * The account the demo signs in as when someone takes the Google or LinkedIn shortcut
+ * on the auth screen. Anika is the student the seeded dataset is built around, so those
+ * two buttons land in a populated app rather than an empty one.
+ *
+ * Signing up with the form creates a real account instead — `create_student()` — and the
+ * app then runs as that student. Every query is scoped by id, so the two paths are the
+ * same code with a different id in it.
  */
 export const DEMO_STUDENT_ID = 'anika-sharma';
 

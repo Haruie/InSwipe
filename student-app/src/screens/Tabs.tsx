@@ -4,10 +4,13 @@ import { allJobs, getCompany, getJob } from '../data/catalog';
 import { computeFit, learningList } from '../lib/fit';
 import { AppHeader } from '../components/AppHeader';
 import { Field } from './Onboarding';
-import { AddProjectSheet } from './ManualFlow';
+import { AddExperienceSheet, AddProjectSheet, SKILL_POOL } from './ManualFlow';
 import { ResetDemoModal } from '../components/ResetDemoModal';
+import { PhotoPicker } from '../components/PhotoPicker';
 import {
+  Avatar,
   Button,
+  Chip,
   CompanyLogo,
   EmptyState,
   FitPill,
@@ -20,9 +23,11 @@ import {
   IconClose,
   IconEdit,
   IconFile,
+  IconPlus,
   IconStar,
   IconTrend,
 } from '../components/Icons';
+import type { Experience, Project } from '@inswipe/core';
 
 /* ----------------------------- Applications ----------------------------- */
 
@@ -269,6 +274,11 @@ export function Saved() {
 export function Profile() {
   const { state, dispatch, logout } = useStore();
   const [addingProject, setAddingProject] = useState(false);
+  // `null` closed, a project open for editing. The sheet is keyed on it so its fields
+  // start from whichever project was tapped rather than the first one.
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [addingExperience, setAddingExperience] = useState(false);
+  const [editingExperience, setEditingExperience] = useState<Experience | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const s = state.student;
   const editing = state.profileEditing;
@@ -297,6 +307,19 @@ export function Profile() {
   return (
     <div className="flex h-full flex-col">
       <AddProjectSheet open={addingProject} onClose={() => setAddingProject(false)} />
+      <AddProjectSheet
+        key={editingProject?.id ?? 'no-project'}
+        open={editingProject !== null}
+        project={editingProject ?? undefined}
+        onClose={() => setEditingProject(null)}
+      />
+      <AddExperienceSheet open={addingExperience} onClose={() => setAddingExperience(false)} />
+      <AddExperienceSheet
+        key={editingExperience?.id ?? 'no-experience'}
+        open={editingExperience !== null}
+        experience={editingExperience ?? undefined}
+        onClose={() => setEditingExperience(null)}
+      />
       <ResetDemoModal open={resetOpen} onClose={() => setResetOpen(false)} />
       <div className="flex-1 overflow-y-auto no-scrollbar pb-4">
         <div className="relative h-[104px]" style={{ background: 'linear-gradient(135deg,#4F46E5,#7C6CF5)' }}>
@@ -311,12 +334,21 @@ export function Profile() {
         {/* relative + z-10: the cover above is positioned, so an unpositioned sibling
             paints underneath it and the avatar disappears behind the gradient. */}
         <div className="relative z-10 -mt-9 px-5">
-          <span className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-primary-100 text-[26px] font-bold text-primary-500 ring-4 ring-canvas">
-            {s.initial}
-          </span>
+          {editing ? (
+            <PhotoPicker size={72} />
+          ) : (
+            <Avatar
+              initial={s.initial}
+              src={s.avatarUrl}
+              size={72}
+              className="ring-4 ring-canvas"
+            />
+          )}
           {editing ? (
             <div className="mt-3 flex flex-col gap-3">
               <Field label="Full name" value={s.name} onChange={(v) => set({ name: v })} />
+              <Field label="Email" value={s.email} onChange={(v) => set({ email: v })} />
+              <Field label="Phone" value={s.phone} onChange={(v) => set({ phone: v })} />
               <Field label="Degree" value={s.degree} onChange={(v) => set({ degree: v })} />
               <Field
                 label="University"
@@ -380,10 +412,18 @@ export function Profile() {
               );
             })}
           </div>
-          <p className="mt-2.5 text-[11.5px] text-ink-300">
-            <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-fit-500 align-middle" />
-            Backed by a project
-          </p>
+          {s.skills.length === 0 && (
+            <p className="text-[12.5px] text-ink-300">
+              No skills yet. They are the largest single part of every fit score.
+            </p>
+          )}
+          {editing && <SkillAdder />}
+          {s.skills.length > 0 && (
+            <p className="mt-2.5 text-[11.5px] text-ink-300">
+              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-fit-500 align-middle" />
+              Backed by a project
+            </p>
+          )}
         </Section>
 
         <Section title="Projects">
@@ -404,30 +444,84 @@ export function Profile() {
                     {p.github ?? p.demo}
                   </div>
                 )}
+                {editing && (
+                  <div className="mt-2.5 flex gap-4 border-t border-line pt-2.5">
+                    <button
+                      onClick={() => setEditingProject(p)}
+                      className="press text-[12px] font-semibold text-primary-500"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => dispatch({ type: 'removeProject', projectId: p.id })}
+                      className="press text-[12px] font-semibold text-ink-300"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
+            {s.projects.length === 0 && !editing && (
+              <p className="text-[12.5px] text-ink-300">
+                No projects yet. They are the strongest evidence you can give a company.
+              </p>
+            )}
             {editing && (
               <button
                 onClick={() => setAddingProject(true)}
                 className="press flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-line py-3 text-[13px] font-semibold text-ink-500"
               >
-                + Add project
+                <IconPlus size={14} /> Add project
               </button>
             )}
           </div>
         </Section>
 
         <Section title="Experience">
-          {s.experience.map((e) => (
-            <div key={e.id}>
-              <div className="text-[14px] font-bold text-ink-900">{e.role}</div>
-              <div className="text-[12.5px] text-ink-500">
-                {e.company} · {e.mode}
+          <div className="space-y-3">
+            {s.experience.map((e) => (
+              <div key={e.id} className="rounded-md border border-line p-3">
+                <div className="text-[14px] font-bold text-ink-900">{e.role}</div>
+                <div className="text-[12.5px] text-ink-500">
+                  {e.company} · {e.mode}
+                </div>
+                <div className="mt-0.5 text-[12px] text-ink-300">{e.period}</div>
+                {e.summary && (
+                  <p className="mt-1.5 text-[12.5px] leading-[1.5] text-ink-500">{e.summary}</p>
+                )}
+                {editing && (
+                  <div className="mt-2.5 flex gap-4 border-t border-line pt-2.5">
+                    <button
+                      onClick={() => setEditingExperience(e)}
+                      className="press text-[12px] font-semibold text-primary-500"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => dispatch({ type: 'removeExperience', experienceId: e.id })}
+                      className="press text-[12px] font-semibold text-ink-300"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
-              <div className="mt-0.5 text-[12px] text-ink-300">{e.period}</div>
-              <p className="mt-1.5 text-[12.5px] leading-[1.5] text-ink-500">{e.summary}</p>
-            </div>
-          ))}
+            ))}
+            {s.experience.length === 0 && !editing && (
+              <p className="text-[12.5px] text-ink-300">
+                No experience yet. Internships, freelance work and lab roles all count.
+              </p>
+            )}
+            {editing && (
+              <button
+                onClick={() => setAddingExperience(true)}
+                className="press flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-line py-3 text-[13px] font-semibold text-ink-500"
+              >
+                <IconPlus size={14} /> Add experience
+              </button>
+            )}
+          </div>
         </Section>
 
         {gaps.length > 0 && (
@@ -534,6 +628,54 @@ export function Profile() {
             chats — here and on the company dashboard.
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Adding a skill from the profile tab. The same pool onboarding offers, minus whatever
+ * is already claimed, plus anything typed that is not on the list — nobody's stack fits
+ * in twenty chips.
+ *
+ * A skill added here starts as weak evidence, which is honest: it is self-declared until
+ * a project or a job backs it up (CLAUDE.md section 5).
+ */
+function SkillAdder() {
+  const { state, dispatch } = useStore();
+  const [q, setQ] = useState('');
+  const have = new Set(state.student.skills.map((sk) => sk.name.toLowerCase()));
+
+  const typed = q.trim();
+  const suggestions = SKILL_POOL.filter(
+    (sk) => !have.has(sk.toLowerCase()) && sk.toLowerCase().includes(typed.toLowerCase()),
+  ).slice(0, 8);
+  const isNew = typed.length > 0 && !have.has(typed.toLowerCase()) &&
+    !SKILL_POOL.some((sk) => sk.toLowerCase() === typed.toLowerCase());
+
+  const add = (skill: string) => {
+    dispatch({ type: 'toggleSkill', skill });
+    setQ('');
+  };
+
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && typed) add(typed);
+        }}
+        placeholder="Add a skill…"
+        className="h-10 w-full rounded-md border border-line bg-white px-3 text-[13.5px] placeholder:text-ink-300"
+      />
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {isNew && <Chip onClick={() => add(typed)}>+ Add “{typed}”</Chip>}
+        {suggestions.map((sk) => (
+          <Chip key={sk} onClick={() => add(sk)}>
+            {sk}
+          </Chip>
+        ))}
       </div>
     </div>
   );

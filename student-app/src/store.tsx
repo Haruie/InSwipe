@@ -9,21 +9,24 @@ import React, {
 } from 'react';
 import {
   applyToJob,
+  emptyStudentWorkspace,
   loadStudentWorkspace,
   markConversationRead,
   markNotificationsRead,
   passJob,
   resetDemoData,
+  saveStudentProfile,
   sendMessage,
   setSaved,
   type ApplicationRecord,
   type NotificationRecord,
+  type StudentRecord,
   type StudentWorkspace,
 } from '@inswipe/data';
-import type { Conversation, Project, Student } from '@inswipe/core';
+import type { Conversation, Experience, ParsedResume, Project, Student } from '@inswipe/core';
 import { catalog, getJob } from './data/catalog';
 import { computeFit } from './lib/fit';
-import { DEMO_STUDENT_ID, db } from './lib/db';
+import { db } from './lib/db';
 import { clearSession, readSession, writeSession } from './lib/session';
 
 export type Screen =
@@ -62,7 +65,7 @@ export interface State {
   tab: Tab;
   introIndex: number;
   authMode: 'signup' | 'signin';
-  student: Student;
+  student: StudentRecord;
   deck: string[];
   passed: string[];
   saved: string[];
@@ -80,6 +83,28 @@ export interface State {
   appliedModal: string | null;
   toast: string | null;
   profileEditing: boolean;
+  /**
+   * The profile on screen has edits that Supabase has not stored yet.
+   *
+   * This is what stops the four-second poll from undoing them. Without it every
+   * keystroke in onboarding or on the profile tab was replaced by the row it came from
+   * within four seconds, which read as fields that refused to change.
+   */
+  profileDirty: boolean;
+  /**
+   * The resume the student just chose, on its way to being read. It lives here rather
+   * than in the upload screen because the screen that reads it is the next one — and it
+   * is a `File`, never a row: nothing about it is written until the student accepts what
+   * came back from it.
+   */
+  pendingResume: File | null;
+  /**
+   * How sure the parser was, field by field, about the profile now on screen. Null when
+   * the profile was typed rather than read. The review screen turns anything below `high`
+   * into a "Confirm?" chip — CLAUDE.md section 6: parsing is imperfect, and the student
+   * is told exactly where.
+   */
+  resumeConfidence: ParsedResume['confidence'] | null;
   learn: Record<string, LearnStatus>;
   filters: Filters;
 }
@@ -88,15 +113,12 @@ export interface State {
  * Everything the student has done lives in Supabase. This turns one load of it into the
  * screen state, and `sync` below folds later loads back in the same way.
  */
-function stateFromWorkspace(workspace: StudentWorkspace): State {
-  // A reload should not replay onboarding. If the last session was signed in, come back
-  // to the tab it was left on.
-  const session = readSession();
+function stateFromWorkspace(workspace: StudentWorkspace, screen: Screen, tab?: Tab): State {
   return {
-    screen: session ? 'main' : 'splash',
+    screen,
     stack: [],
     dir: 'f',
-    tab: session?.tab ?? 'discover',
+    tab: tab ?? 'discover',
     introIndex: 0,
     authMode: 'signup',
     student: workspace.student,
@@ -117,9 +139,33 @@ function stateFromWorkspace(workspace: StudentWorkspace): State {
     appliedModal: null,
     toast: null,
     profileEditing: false,
+    profileDirty: false,
+    pendingResume: null,
+    resumeConfidence: null,
     learn: {},
     filters: { minFit: 0, workMode: 'Any' },
   };
+}
+
+/**
+ * Where a freshly loaded app starts. A reload should not replay onboarding, so a
+ * session that finished it comes back to the tab it was left on — and one that did not
+ * resumes at the fork, holding the account it had already created.
+ */
+function initialState(workspace: StudentWorkspace): State {
+  const session = readSession();
+  if (!session || !workspace.student.id) return stateFromWorkspace(workspace, 'splash');
+  return stateFromWorkspace(workspace, session.onboarded ? 'main' : 'fork', session.tab);
+}
+
+/**
+ * A profile change, with the flag that keeps it. Every edit goes through here so no
+ * screen can change the student without the save that follows it.
+ */
+function edited(student: StudentRecord): Pick<State, 'student' | 'profileDirty'> {
+  // The avatar letter is derived, never typed, so it cannot fall out of step with the name.
+  const initial = student.name.trim() ? student.name.trim()[0].toUpperCase() : '·';
+  return { student: { ...student, initial }, profileDirty: true };
 }
 
 type Action =
@@ -138,8 +184,14 @@ type Action =
   | { type: 'updateStudent'; patch: Partial<Student> }
   | { type: 'toggleSkill'; skill: string }
   | { type: 'addProject'; project: Project }
-  | { type: 'startManualProfile' }
+  | { type: 'updateProject'; project: Project }
+  | { type: 'removeProject'; projectId: string }
+  | { type: 'addExperience'; experience: Experience }
+  | { type: 'updateExperience'; experience: Experience }
+  | { type: 'removeExperience'; experienceId: string }
+  | { type: 'profileSaved'; student: StudentRecord }
   | { type: 'dismissGap'; skill: string }
+  | { type: 'signedIn'; workspace: StudentWorkspace; screen: Screen }
   | { type: 'logout'; workspace: StudentWorkspace };
 
 function reducer(state: State, action: Action): State {
@@ -264,7 +316,9 @@ function reducer(state: State, action: Action): State {
 
       return {
         ...state,
-        student: action.workspace.student,
+        // An edit that has not reached Supabase yet outranks the row it was made from.
+        // The save is in flight; the next poll after it lands agrees with the screen.
+        student: state.profileDirty ? state.student : action.workspace.student,
         deck: action.workspace.deckJobIds,
         passed: action.workspace.passed,
         saved: action.workspace.saved,
@@ -282,56 +336,100 @@ function reducer(state: State, action: Action): State {
     case 'setLearn':
       return { ...state, learn: { ...state.learn, [action.skill]: action.status } };
 
+    /*
+     * Everything below edits the profile. Each one marks it dirty, and the provider
+     * flushes it to Supabase shortly afterwards — see `save_student_profile()`. The
+     * dirty flag is why these edits stick: `sync` above will not overwrite them.
+     */
     case 'updateStudent':
-      return { ...state, student: { ...state.student, ...action.patch } };
+      return { ...state, ...edited({ ...state.student, ...action.patch }) };
 
     case 'toggleSkill': {
       const exists = state.student.skills.some((s) => s.name === action.skill);
       return {
         ...state,
-        student: {
+        ...edited({
           ...state.student,
           skills: exists
             ? state.student.skills.filter((s) => s.name !== action.skill)
             : [...state.student.skills, { name: action.skill, evidence: 'weak' }],
-        },
+        }),
       };
     }
 
     case 'addProject':
       return {
         ...state,
-        student: { ...state.student, projects: [...state.student.projects, action.project] },
+        ...edited({ ...state.student, projects: [...state.student.projects, action.project] }),
       };
 
-    /** Manual entry has to start from a blank profile, not the parsed one. */
-    case 'startManualProfile':
+    case 'updateProject':
       return {
         ...state,
-        student: {
+        ...edited({
           ...state.student,
-          name: '',
-          initial: '·',
-          email: '',
-          phone: '',
-          university: '',
-          degree: '',
-          field: '',
-          gradYear: '',
-          skills: [],
-          projects: [],
-          experience: [],
-          resume: undefined,
-          links: {},
-        },
+          projects: state.student.projects.map((p) =>
+            p.id === action.project.id ? action.project : p,
+          ),
+        }),
       };
+
+    case 'removeProject':
+      return {
+        ...state,
+        ...edited({
+          ...state.student,
+          projects: state.student.projects.filter((p) => p.id !== action.projectId),
+        }),
+      };
+
+    case 'addExperience':
+      return {
+        ...state,
+        ...edited({
+          ...state.student,
+          experience: [...state.student.experience, action.experience],
+        }),
+      };
+
+    case 'updateExperience':
+      return {
+        ...state,
+        ...edited({
+          ...state.student,
+          experience: state.student.experience.map((e) =>
+            e.id === action.experience.id ? action.experience : e,
+          ),
+        }),
+      };
+
+    case 'removeExperience':
+      return {
+        ...state,
+        ...edited({
+          ...state.student,
+          experience: state.student.experience.filter((e) => e.id !== action.experienceId),
+        }),
+      };
+
+    /**
+     * The save landed. It only clears the flag if nothing was typed while the write was
+     * in flight — otherwise those newer edits are still unsaved, and the provider will
+     * send them next.
+     */
+    case 'profileSaved':
+      return state.student === action.student ? { ...state, profileDirty: false } : state;
+
+    /** A real account, loaded. Everything about the signed-out app is discarded. */
+    case 'signedIn':
+      return stateFromWorkspace(action.workspace, action.screen);
 
     case 'dismissGap':
       return { ...state, learn: { ...state.learn, [action.skill]: 'skipped' } };
 
     /** Back to the splash screen with nothing carried over from the session. */
     case 'logout':
-      return { ...stateFromWorkspace(action.workspace), screen: 'splash' };
+      return stateFromWorkspace(action.workspace, 'splash');
 
     default:
       return state;
@@ -357,6 +455,8 @@ const StoreContext = createContext<{
   state: State;
   dispatch: React.Dispatch<Action>;
   sync: () => Promise<void>;
+  /** Loads a student's workspace and runs the app as them. */
+  signIn: (studentId: string, options: { onboarded: boolean }) => Promise<void>;
   logout: () => void;
   resetDemo: () => Promise<string>;
 } | null>(null);
@@ -368,7 +468,7 @@ export function StoreProvider({
   workspace: StudentWorkspace;
   children: React.ReactNode;
 }) {
-  const [state, rawDispatch] = useReducer(reducer, workspace, stateFromWorkspace);
+  const [state, rawDispatch] = useReducer(reducer, workspace, initialState);
 
   // The reducer stays pure. Anything that changes the database happens here, and the
   // reload that follows is what makes the dashboard's view and this one agree.
@@ -378,9 +478,9 @@ export function StoreProvider({
   // Once onboarding is behind her, remember it, so a refresh returns to the app rather
   // than the splash screen. The onboarding screens themselves are never remembered.
   useEffect(() => {
-    if (ONBOARDING.has(state.screen)) return;
-    writeSession({ signedIn: true, tab: state.tab });
-  }, [state.screen, state.tab]);
+    if (ONBOARDING.has(state.screen) || !state.student.id) return;
+    writeSession({ studentId: state.student.id, onboarded: true, tab: state.tab });
+  }, [state.screen, state.tab, state.student.id]);
 
   /**
    * Demo only. `demo_reset()` can be run from the profile tab here, from the company
@@ -392,7 +492,11 @@ export function StoreProvider({
   const knownApplications = useRef(new Set(workspace.applications.map((a) => a.id)));
 
   const sync = useCallback(async () => {
-    const next = await loadStudentWorkspace(db, DEMO_STUDENT_ID, catalog());
+    // Nobody is signed in yet — the splash and auth screens have nothing to poll for.
+    const studentId = stateRef.current.student.id;
+    if (!studentId) return;
+
+    const next = await loadStudentWorkspace(db, studentId, catalog());
 
     const ids = new Set(next.applications.map((a) => a.id));
     for (const id of knownApplications.current) {
@@ -423,7 +527,7 @@ export function StoreProvider({
           if (current.applications.some((a) => a.jobId === action.jobId)) break;
           after(
             applyToJob(db, {
-              studentId: DEMO_STUDENT_ID,
+              studentId: current.student.id,
               jobId: action.jobId,
               note: action.note,
               noteWasAiDrafted: Boolean(action.note),
@@ -433,10 +537,10 @@ export function StoreProvider({
           break;
         }
         case 'pass':
-          after(passJob(db, DEMO_STUDENT_ID, action.jobId));
+          after(passJob(db, current.student.id, action.jobId));
           break;
         case 'toggleSave':
-          after(setSaved(db, DEMO_STUDENT_ID, action.jobId, !current.saved.includes(action.jobId)));
+          after(setSaved(db, current.student.id, action.jobId, !current.saved.includes(action.jobId)));
           break;
         case 'send': {
           const conversation = current.conversations.find((c) => c.jobId === action.jobId);
@@ -454,7 +558,7 @@ export function StoreProvider({
         }
         case 'nav':
           if (action.screen === 'notifications' && current.notifications.some((n) => n.unread)) {
-            after(markNotificationsRead(db, DEMO_STUDENT_ID));
+            after(markNotificationsRead(db, current.student.id));
           }
           break;
         default:
@@ -464,12 +568,53 @@ export function StoreProvider({
     [sync],
   );
 
+  /**
+   * Run the app as this student. Called once an account has been created or signed into
+   * — the id is real either way, so from here on every read and write is scoped to it.
+   */
+  const signIn = useCallback(
+    async (studentId: string, options: { onboarded: boolean }) => {
+      const next = await loadStudentWorkspace(db, studentId, catalog());
+      knownApplications.current = new Set(next.applications.map((a) => a.id));
+      writeSession({ studentId, onboarded: options.onboarded, tab: 'discover' });
+      rawDispatch({
+        type: 'signedIn',
+        workspace: next,
+        screen: options.onboarded ? 'main' : 'fork',
+      });
+    },
+    [],
+  );
+
+  /**
+   * The other half of the fix for edits that would not stick. The reducer keeps the
+   * edit on screen; this is what puts it in Supabase.
+   *
+   * Debounced, because the caller is a text field: typing a university name should be
+   * one write, not thirty. The snapshot is compared by reference on the way back, so an
+   * edit made while the write was in flight is not marked saved by it.
+   */
+  useEffect(() => {
+    if (!state.profileDirty || !state.student.id) return;
+    const snapshot = state.student;
+    const timer = setTimeout(() => {
+      saveStudentProfile(db, snapshot)
+        .then(() => rawDispatch({ type: 'profileSaved', student: snapshot }))
+        .catch((error) => {
+          console.error('[InSwipe] profile save failed', error);
+          rawDispatch({ type: 'patch', patch: { toast: 'Could not save your profile' } });
+        });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [state.profileDirty, state.student]);
+
   // Signing out is a session concern, not a data one: nothing is written to Supabase,
   // the app simply forgets that anyone was signed in and returns to the splash screen.
+  // The profile itself is a row, so it is still there at the next sign-in.
   const logout = useCallback(() => {
     clearSession();
-    rawDispatch({ type: 'logout', workspace });
-  }, [workspace]);
+    rawDispatch({ type: 'logout', workspace: emptyStudentWorkspace(catalog()) });
+  }, []);
 
   /**
    * Demo only: restores the dataset a presentation starts from. The caller reloads the
@@ -479,8 +624,8 @@ export function StoreProvider({
   const resetDemo = useCallback(() => resetDemoData(db), []);
 
   const value = useMemo(
-    () => ({ state, dispatch, sync, logout, resetDemo }),
-    [state, dispatch, sync, logout, resetDemo],
+    () => ({ state, dispatch, sync, signIn, logout, resetDemo }),
+    [state, dispatch, sync, signIn, logout, resetDemo],
   );
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
