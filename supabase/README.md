@@ -1,7 +1,13 @@
 # Supabase
 
 Supabase is the source of truth for the demo. Both products read and write these tables:
-the student app as `anika-sharma`, the company dashboard as `technova`.
+the student app as whoever is signed in, the company dashboard as `technova`.
+
+Signing up in the student app writes a real `students` row (`create_student()`) and the
+app runs as it \u2014 every read and write is already scoped by id. Signing in matches on email.
+No password is stored: the demo has no authentication yet and a credential it cannot
+protect is worse than none. The Google and LinkedIn buttons are demo shortcuts into
+`anika-sharma`, the account the seeded dataset is built around.
 
 `packages/core` still owns the domain types and the fit engine — no scores are stored,
 both apps compute them from the same profile and job rows.
@@ -16,6 +22,7 @@ Run these in order, in the SQL editor of the project
 | `migrations/0001_schema.sql` | Tables, indexes and the two rules the database enforces |
 | `migrations/0002_rls_and_rpcs.sql` | Read-only RLS plus every write, as a function |
 | `migrations/0003_demo_dataset.sql` | Defines `demo_reset()` and calls it once |
+| `migrations/0004_accounts_and_profile.sql` | Student accounts, and the write behind every profile edit |
 
 They are idempotent — re-running any of them is safe.
 
@@ -27,7 +34,11 @@ One call restores the exact state a presentation starts from:
 select public.demo_reset();
 ```
 
-or, from the repo root:
+This includes accounts created during a run-through \u2014 `students` is one of the tables it
+rebuilds \u2014 so a session pointing at an account that no longer exists signs itself out on
+the next load rather than failing to start.
+
+Or, from the repo root:
 
 ```bash
 node scripts/demo.mjs reset
@@ -55,6 +66,29 @@ later supplies a real photograph replaces one column value and nothing else chan
 
 `node scripts/demo.mjs check` prints the row counts and TechNova's ranked applicant list
 without changing anything.
+
+## The Edge Function
+
+`functions/parse-resume` reads a student's resume PDF into a structured profile
+(CLAUDE.md section 8). It exists as a function rather than a call from the app because of
+the key: the anon key in both bundles can only read, but a model provider's key is a spend
+credential, so this is the only code that ever sees one.
+
+It writes nothing. The parse comes back, the student confirms it on the review screen, and
+the ordinary `save_student_profile()` call stores it.
+
+**Setting it up**
+
+1. Project Settings → Edge Functions → Secrets → add `GEMINI_API_KEY`.
+2. Deploy the function: `supabase functions deploy parse-resume`, or use the Supabase MCP.
+
+Without the secret the function answers `503 not_configured`, and the student app falls
+back to the scripted stand-in it used before — the seeded profile, applied to whoever is
+signing up, with a toast saying so. A checkout of this repo with no key still demos.
+
+**Reading a failure.** The function logs the provider's own response before answering, so
+Edge Function logs in the dashboard say whether a parse failed on the key, the file or the
+model. The app only ever shows the student a sentence.
 
 ## The two rules the database enforces
 

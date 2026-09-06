@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { createStudentAccount, signInStudent } from '@inswipe/data';
 import { useStore } from '../store';
+import { DEMO_STUDENT_ID, db } from '../lib/db';
 import { StatusBar, HomeIndicator } from '../components/PhoneFrame';
 import { Logo } from '../components/AppHeader';
 import { AiLabel, Button, CompanyLogo, FitPill } from '../components/ui';
@@ -247,10 +249,12 @@ function ArtLock() {
 /* --------------------------------- Auth --------------------------------- */
 
 export function Auth() {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, signIn } = useStore();
   const signup = state.authMode === 'signup';
   const [fields, setFields] = useState({ name: '', email: '', password: '' });
   const [touchedEmail, setTouchedEmail] = useState(false);
+  const [busy, setBusy] = useState<null | 'form' | 'google' | 'linkedin'>(null);
+  const [failure, setFailure] = useState<string | null>(null);
 
   const emailValid = /\S+@\S+\.\S+/.test(fields.email);
   const emailError = touchedEmail && fields.email.length > 0 && !emailValid;
@@ -258,15 +262,54 @@ export function Auth() {
     ? !(fields.name && emailValid && fields.password)
     : !(emailValid && fields.password);
 
-  const submit = () => dispatch({ type: 'nav', screen: signup ? 'fork' : 'main' });
+  const run = async (what: 'form' | 'google' | 'linkedin', work: () => Promise<void>) => {
+    setBusy(what);
+    setFailure(null);
+    try {
+      await work();
+    } catch (error) {
+      console.error('[InSwipe] sign-in failed', error);
+      setFailure('Something went wrong reaching the server. Try again.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /**
+   * The real path. Signing up writes a `students` row and the app runs as that student
+   * from here on — an empty profile, an empty application list, and the deck ranked
+   * against whatever they tell us next. Signing in looks the account up by email.
+   */
+  const submit = () =>
+    run('form', async () => {
+      if (signup) {
+        const id = await createStudentAccount(db, { name: fields.name.trim(), email: fields.email.trim() });
+        await signIn(id, { onboarded: false });
+        return;
+      }
+      const id = await signInStudent(db, fields.email.trim());
+      if (!id) {
+        setFailure('No account with that email. Sign up instead?');
+        return;
+      }
+      await signIn(id, { onboarded: true });
+    });
+
+  /**
+   * Demo shortcut. There is no OAuth yet (CLAUDE.md section 10), so these two open the
+   * seeded student's account — a populated app to demonstrate against, one tap in.
+   */
+  const bypass = (which: 'google' | 'linkedin') =>
+    run(which, () => signIn(DEMO_STUDENT_ID, { onboarded: true }));
 
   return (
     <div className="flex h-full flex-col bg-canvas">
       <StatusBar />
-      <div className="flex items-center px-5 py-2">
+      <div className="flex items-center justify-between px-5 py-2">
         <button onClick={() => dispatch({ type: 'back' })} className="press -ml-1 text-ink-700">
           <IconBack size={22} />
         </button>
+        <Logo size={24} />
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar px-6 pb-4">
@@ -317,8 +360,26 @@ export function Auth() {
           />
         </div>
 
-        <Button size="lg" full className="mt-5" disabled={disabled} onClick={submit}>
-          {signup ? 'Create account' : 'Sign in'}
+        {failure && (
+          <p className="mt-4 rounded-md bg-pass-100 px-3 py-2.5 text-[12.5px] font-medium text-pass-500">
+            {failure}
+          </p>
+        )}
+
+        <Button
+          size="lg"
+          full
+          className="mt-5"
+          disabled={disabled || busy !== null}
+          onClick={submit}
+        >
+          {busy === 'form'
+            ? signup
+              ? 'Creating your account…'
+              : 'Signing you in…'
+            : signup
+              ? 'Create account'
+              : 'Sign in'}
         </Button>
 
         <div className="my-5 flex items-center gap-3">
@@ -328,9 +389,21 @@ export function Auth() {
         </div>
 
         <div className="flex flex-col gap-2.5">
-          <OAuthButton label="Continue with Google" onClick={submit} />
-          <OAuthButton label="Continue with LinkedIn" hint="imports your profile" onClick={submit} />
+          <OAuthButton
+            label={busy === 'google' ? 'Opening the demo account…' : 'Continue with Google'}
+            disabled={busy !== null}
+            onClick={() => bypass('google')}
+          />
+          <OAuthButton
+            label={busy === 'linkedin' ? 'Opening the demo account…' : 'Continue with LinkedIn'}
+            hint="imports your profile"
+            disabled={busy !== null}
+            onClick={() => bypass('linkedin')}
+          />
         </div>
+        <p className="mt-2.5 text-center text-[11.5px] text-ink-300">
+          Both open the demo student's account, already full of activity.
+        </p>
 
         <p className="mt-5 text-center text-[11.5px] leading-relaxed text-ink-300">
           By continuing you agree to InSwipe's Terms of Service and Privacy Policy.
@@ -380,15 +453,18 @@ function OAuthButton({
   label,
   hint,
   onClick,
+  disabled,
 }: {
   label: string;
   hint?: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="press flex h-12 w-full items-center justify-center gap-2 rounded-md border border-line bg-white text-[14px] font-semibold text-ink-900"
+      disabled={disabled}
+      className="press flex h-12 w-full items-center justify-center gap-2 rounded-md border border-line bg-white text-[14px] font-semibold text-ink-900 disabled:opacity-50"
     >
       {label}
       {hint && <span className="text-[12px] font-normal text-ink-300">· {hint}</span>}
@@ -450,11 +526,9 @@ export function Fork() {
           </button>
 
           <button
-            onClick={() => {
-              // Manual entry must start from an empty profile, not the parsed one.
-              dispatch({ type: 'startManualProfile' });
-              dispatch({ type: 'nav', screen: 'm-basic' });
-            }}
+            // A new account starts empty, so there is nothing to clear here — and
+            // clearing would now be a write, not a local reset.
+            onClick={() => dispatch({ type: 'nav', screen: 'm-basic' })}
             className="press rounded-xl border border-line bg-white p-5 text-left"
           >
             <h2 className="text-[17px] font-bold text-ink-900">Fill it in manually</h2>

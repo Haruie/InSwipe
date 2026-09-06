@@ -64,6 +64,7 @@ export interface StudentRow {
   location: string;
   year_label: string;
   resume_file: string;
+  avatar_url: string;
 }
 
 export interface JobRow {

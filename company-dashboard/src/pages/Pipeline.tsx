@@ -2,6 +2,7 @@ import { useState } from "react";
 import { fitBand } from "@inswipe/core";
 import { KANBAN_STAGES, type Candidate } from "../data/candidates";
 import { useDashboard } from "../data/store";
+import CandidateAvatar from "../components/CandidateAvatar";
 
 interface Props {
   candidates: Candidate[];
@@ -35,7 +36,7 @@ function KanbanCard({ candidate: c, onDragStart, onDragEnd, isDragging }: { cand
       }}
     >
       <div className="flex items-center gap-2.5 mb-2.5">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold flex-shrink-0" style={{ background: c.avatarColor, color: "#4F46E5" }}>{c.initials}</div>
+        <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={32} radius={10} fontSize={11} />
         <div className="flex-1 min-w-0">
           <div className="text-[12px] font-semibold truncate" style={{ color: "#0F1117" }}>{c.name}</div>
           <div className="text-[11px] truncate" style={{ color: "#9CA3AF" }}>{c.school.split(" ").slice(0, 2).join(" ")}</div>

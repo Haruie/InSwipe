@@ -3,6 +3,7 @@ import type { Conversation } from "@inswipe/core";
 import type { Page } from "../App";
 import FitScoreRing from "../components/FitScoreRing";
 import { useDashboard } from "../data/store";
+import CandidateAvatar from "../components/CandidateAvatar";
 
 interface Props {
   onNavigate?: (p: Page) => void;
@@ -93,7 +94,7 @@ export default function Inbox({ onNavigate, activeConversationId, onActiveConver
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F7F7FB"; }}
                 onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
               >
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-bold flex-shrink-0" style={{ background: cand?.avatarColor ?? "#EEF0FF", color: "#4F46E5" }}>{cand?.initials ?? "?"}</div>
+                <CandidateAvatar initials={cand?.initials ?? "?"} color={cand?.avatarColor ?? "#EEF0FF"} photoUrl={cand?.photoUrl} size={36} radius={12} fontSize={11} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="text-[13px] font-medium truncate" style={{ color: "#0F1117" }}>{cand?.name ?? conv.studentId}</span>
@@ -118,7 +119,7 @@ export default function Inbox({ onNavigate, activeConversationId, onActiveConver
         <div className="flex-1 flex flex-col min-w-0">
           {/* Chat header */}
           <div className="flex items-center gap-4 px-6 py-4 flex-shrink-0" style={{ background: "#FFFFFF", borderBottom: "1px solid #E8E8EF" }}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-bold" style={{ background: activeCand?.avatarColor ?? "#EEF0FF", color: "#4F46E5" }}>{activeCand?.initials ?? "?"}</div>
+            <CandidateAvatar initials={activeCand?.initials ?? "?"} color={activeCand?.avatarColor ?? "#EEF0FF"} photoUrl={activeCand?.photoUrl} size={36} radius={12} fontSize={11} />
             <div className="flex-1">
               <div className="text-[13px] font-semibold" style={{ color: "#0F1117" }}>{activeCand?.name ?? active.studentId}</div>
               <div className="text-[12px]" style={{ color: "#9CA3AF" }}>{activeJob?.title ?? ""}</div>
@@ -138,7 +139,9 @@ export default function Inbox({ onNavigate, activeConversationId, onActiveConver
             {active.messages.map((msg, i) => (
               <div key={msg.id} className={`flex ${msg.fromCompany ? "justify-end" : "justify-start"} anim-fade-up`} style={{ animationDelay: `${i * 0.04}s` }}>
                 {!msg.fromCompany && (
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold mr-2 flex-shrink-0 self-end" style={{ background: activeCand?.avatarColor ?? "#EEF0FF", color: "#4F46E5" }}>{activeCand?.initials ?? "?"}</div>
+                  <div className="mr-2 flex-shrink-0 self-end">
+                    <CandidateAvatar initials={activeCand?.initials ?? "?"} color={activeCand?.avatarColor ?? "#EEF0FF"} photoUrl={activeCand?.photoUrl} size={28} radius={10} fontSize={10} />
+                  </div>
                 )}
                 <div style={{ maxWidth: "62%" }}>
                   <div
@@ -196,7 +199,9 @@ export default function Inbox({ onNavigate, activeConversationId, onActiveConver
           <div className="px-5 py-5">
             <div className="text-[11px] font-semibold uppercase tracking-wider mb-4" style={{ color: "#9CA3AF", letterSpacing: "0.08em" }}>Candidate</div>
             <div className="flex flex-col items-center text-center mb-5">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[13px] font-bold mb-3" style={{ background: activeCand.avatarColor, color: "#4F46E5" }}>{activeCand.initials}</div>
+              <div className="mb-3">
+                <CandidateAvatar initials={activeCand.initials} color={activeCand.avatarColor} photoUrl={activeCand.photoUrl} size={48} radius={12} fontSize={13} />
+              </div>
               <div className="text-[13px] font-semibold" style={{ color: "#0F1117" }}>{activeCand.name}</div>
               <div className="text-[12px] mt-0.5 mb-4" style={{ color: "#9CA3AF" }}>{activeCand.school}</div>
               <FitScoreRing score={activeCand.fitScore} size={72} />

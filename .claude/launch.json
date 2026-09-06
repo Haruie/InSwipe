@@ -4,14 +4,26 @@
     {
       "name": "student-app",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "student-app"],
-      "port": 5173
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "student-app"
+      ],
+      "port": 5173,
+      "autoPort": true
     },
     {
       "name": "company-dashboard",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "company-dashboard"],
-      "port": 8443
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "company-dashboard"
+      ],
+      "port": 8443,
+      "autoPort": true
     }
   ]
 }

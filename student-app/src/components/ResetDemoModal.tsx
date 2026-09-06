@@ -46,6 +46,7 @@ export function ResetDemoModal({ open, onClose }: { open: boolean; onClose: () =
           'Your swipe deck back to its opening cards',
           'Applications back to their opening statuses',
           'Saved list and the inbox padlock restored',
+          'Accounts created during this run-through removed',
         ].map((line) => (
           <li key={line} className="flex items-start gap-2.5 text-[12.5px] text-ink-700">
             <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500" />

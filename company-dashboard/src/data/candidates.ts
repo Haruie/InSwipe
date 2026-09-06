@@ -22,6 +22,8 @@ export interface Candidate {
   name: string;
   initials: string;
   avatarColor: string;
+  /** the student's own photo, if they have added one; the initials stand in otherwise */
+  photoUrl?: string;
   school: string;
   degree: string;
   year: string;
@@ -97,6 +99,7 @@ export function toCandidate({ application, student }: ApplicantRecord, job: Job)
     name: student.name,
     initials: initialsOf(student.name),
     avatarColor: student.avatarColor,
+    photoUrl: student.avatarUrl,
     school: student.university,
     degree: student.degree,
     year: student.yearLabel,

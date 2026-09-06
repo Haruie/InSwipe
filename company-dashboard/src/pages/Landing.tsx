@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BrandLockup, BrandMark } from "../components/Brand";
 
 interface Props {
   onHiring: () => void;
@@ -72,9 +73,7 @@ export default function Landing({ onHiring, onSignIn }: Props) {
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 40px", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           {/* Logo */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: "#4F46E5", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15, letterSpacing: -0.5 }}>
-              IS
-            </div>
+            <BrandMark size={36} />
             <span style={{ fontWeight: 700, fontSize: 18, color: "#0F1117", letterSpacing: -0.4 }}>InSwipe</span>
           </div>
           {/* Links */}
@@ -103,9 +102,10 @@ export default function Landing({ onHiring, onSignIn }: Props) {
       <section style={{ maxWidth: 1280, margin: "0 auto", padding: "96px 40px 80px", display: "flex", alignItems: "center", gap: 80 }}>
         {/* Left */}
         <div style={{ flex: "0 0 520px" }} className="fade-in-1">
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#EEF0FF", borderRadius: 999, padding: "6px 14px", marginBottom: 24 }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4F46E5", display: "inline-block" }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#4F46E5", letterSpacing: 0.3 }}>AI-Powered Internship Matching</span>
+          {/* The lockup carries the tagline, so it stands in for the pill that used to
+              say the same thing here. This is the one slot wide enough to read it. */}
+          <div style={{ marginBottom: 28 }}>
+            <BrandLockup width={380} />
           </div>
           <h1 style={{ fontSize: 68, fontWeight: 800, color: "#0F1117", lineHeight: 1.08, letterSpacing: -2, marginBottom: 24 }}>
             Find the internship<br />that fits <span style={{ color: "#4F46E5" }}>you.</span>
@@ -443,7 +443,7 @@ export default function Landing({ onHiring, onSignIn }: Props) {
             {/* Brand */}
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#4F46E5", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13 }}>IS</div>
+                <BrandMark size={32} />
                 <span style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>InSwipe</span>
               </div>
               <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.7, maxWidth: 220 }}>AI-powered internship matching for the next generation of talent.</p>

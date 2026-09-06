@@ -4,6 +4,7 @@ import { fitBand } from "@inswipe/core";
 import type { Candidate } from "../data/candidates";
 import type { JobPosting as Job } from "../data/jobs";
 import { useDashboard } from "../data/store";
+import CandidateAvatar from "../components/CandidateAvatar";
 
 interface Props {
   onNavigate: (page: Page) => void;
@@ -153,7 +154,7 @@ export default function Dashboard({ onNavigate, candidates, jobs, onOpenConversa
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
                   <div className="text-[12px] font-semibold w-5 text-center" style={{ color: "#9CA3AF" }}>#{c.rank}</div>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[12px] font-bold flex-shrink-0" style={{ background: c.avatarColor, color: "#4F46E5" }}>{c.initials}</div>
+                  <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={36} radius={12} fontSize={12} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-medium" style={{ color: "#0F1117" }}>{c.name}</div>
                     <div className="text-[12px] mt-0.5 truncate" style={{ color: "#6B7280" }}>{c.school}</div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Candidate } from "../data/candidates";
 import FitScoreRing from "./FitScoreRing";
+import CandidateAvatar from "./CandidateAvatar";
 
 interface Props {
   candidate: Candidate;
@@ -60,9 +61,7 @@ export default function CandidateDrawer({ candidate: c, onClose, onSelect, onNot
           {/* Hero */}
           <div className="px-6 py-5" style={{ borderBottom: "1px solid #E8E8EF" }}>
             <div className="flex items-start gap-4">
-              <div className="flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ color: "#4F46E5", background: c.avatarColor, width: 48, height: 48, borderRadius: 12 }}>
-                {c.initials}
-              </div>
+              <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={48} radius={12} fontSize={14} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-semibold" style={{ color: "#0F1117" }}>{c.name}</h2>

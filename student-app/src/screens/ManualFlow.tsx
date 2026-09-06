@@ -1,12 +1,14 @@
 import { useState } from 'react';
+import type { Experience, Project } from '@inswipe/core';
 import { useStore, type Screen } from '../store';
 import { HomeIndicator, StatusBar } from '../components/PhoneFrame';
 import { StepHeader } from './ResumeFlow';
 import { Field } from './Onboarding';
+import { PhotoPicker } from '../components/PhotoPicker';
 import { Button, Chip, EmptyState, SectionLabel, Sheet, SheetHeader, Tag } from '../components/ui';
 import { IconFile, IconPlus, IconSearch } from '../components/Icons';
 
-const SKILL_POOL = [
+export const SKILL_POOL = [
   'React', 'TypeScript', 'JavaScript', 'Python', 'Node.js', 'SQL', 'PostgreSQL', 'Figma',
   'Git', 'Java', 'Flutter', 'AWS', 'Machine Learning', 'Docker', 'GraphQL', 'MongoDB',
   'Kotlin', 'Swift', 'REST APIs', 'CSS',
@@ -62,26 +64,39 @@ export function ManualBasic() {
   const { state, dispatch } = useStore();
   const s = state.student;
   const set = (patch: Partial<typeof s>) => dispatch({ type: 'updateStudent', patch });
+
+  /**
+   * `education` is the same three facts, in the shape the company dashboard's candidate
+   * drawer reads. Keeping it in step here means a recruiter never sees a blank education
+   * block on a profile that has one.
+   */
+  const next = () => {
+    dispatch({
+      type: 'updateStudent',
+      patch: {
+        education: {
+          ...s.education,
+          degree: s.degree || s.education.degree,
+          university: s.university || s.education.university,
+        },
+      },
+    });
+    dispatch({ type: 'nav', screen: 'm-skills' as Screen });
+  };
   return (
     <Shell
       step={1}
       title="Basic info"
       subtitle="This stays private until you apply."
-      onNext={() => dispatch({ type: 'nav', screen: 'm-skills' as Screen })}
+      onNext={next}
     >
-      <div className="mb-5 flex items-center gap-3">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-[22px] font-bold text-primary-500">
-          {s.initial}
-        </span>
-        <button
-          onClick={() => dispatch({ type: 'patch', patch: { toast: 'Photo upload arrives with the backend' } })}
-          className="press text-[13.5px] font-semibold text-primary-500"
-        >
-          Add a photo (optional)
-        </button>
+      <div className="mb-5">
+        <PhotoPicker size={64} />
       </div>
       <div className="flex flex-col gap-3">
         <Field label="Full name" value={s.name} onChange={(v) => set({ name: v })} />
+        <Field label="Email" value={s.email} onChange={(v) => set({ email: v })} />
+        <Field label="Phone" value={s.phone} onChange={(v) => set({ phone: v })} placeholder="+91 98765 43210" />
         <Field label="University" value={s.university} onChange={(v) => set({ university: v })} />
         <Field label="Degree" value={s.degree} onChange={(v) => set({ degree: v })} />
         <Field label="Field of study" value={s.field} onChange={(v) => set({ field: v })} />
@@ -202,6 +217,12 @@ export function ManualProjects() {
                   {p.github ?? p.demo}
                 </div>
               )}
+              <button
+                onClick={() => dispatch({ type: 'removeProject', projectId: p.id })}
+                className="press mt-2.5 border-t border-line pt-2.5 text-[12px] font-semibold text-ink-300"
+              >
+                Remove
+              </button>
             </div>
           ))}
           <button
@@ -216,15 +237,28 @@ export function ManualProjects() {
   );
 }
 
-/** A working add-project sheet — the button used to be inert. */
-export function AddProjectSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+/**
+ * Add a project, or edit one that is already there. Both, because the profile tab needs
+ * the same form for both and a second copy of it would drift.
+ *
+ * The caller keys this on the project being edited, so the fields start from it.
+ */
+export function AddProjectSheet({
+  open,
+  onClose,
+  project,
+}: {
+  open: boolean;
+  onClose: () => void;
+  project?: Project;
+}) {
   const { dispatch } = useStore();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState(project?.name ?? '');
+  const [description, setDescription] = useState(project?.description ?? '');
   const [techInput, setTechInput] = useState('');
-  const [tech, setTech] = useState<string[]>([]);
-  const [github, setGithub] = useState('');
-  const [demo, setDemo] = useState('');
+  const [tech, setTech] = useState<string[]>(project?.tech ?? []);
+  const [github, setGithub] = useState(project?.github ?? '');
+  const [demo, setDemo] = useState(project?.demo ?? '');
 
   const reset = () => {
     setName('');
@@ -242,24 +276,25 @@ export function AddProjectSheet({ open, onClose }: { open: boolean; onClose: () 
   };
 
   const save = () => {
-    dispatch({
-      type: 'addProject',
-      project: {
-        id: `p-${Date.now()}`,
-        name: name.trim(),
-        description: description.trim(),
-        tech,
-        github: github.trim() || undefined,
-        demo: demo.trim() || undefined,
-      },
-    });
-    reset();
+    const next: Project = {
+      id: project?.id ?? `p-${Date.now()}`,
+      name: name.trim(),
+      description: description.trim(),
+      tech,
+      github: github.trim() || undefined,
+      demo: demo.trim() || undefined,
+      contribution: project?.contribution,
+    };
+    dispatch(
+      project ? { type: 'updateProject', project: next } : { type: 'addProject', project: next },
+    );
+    if (!project) reset();
     onClose();
   };
 
   return (
     <Sheet open={open} onClose={onClose} heightPct={88}>
-      <SheetHeader title="Add project" onClose={onClose} />
+      <SheetHeader title={project ? 'Edit project' : 'Add project'} onClose={onClose} />
       <div className="flex-1 space-y-3 overflow-y-auto no-scrollbar px-5 pb-4">
         <Field label="Project name" value={name} onChange={setName} placeholder="MediTrack" />
         <label className="block">
@@ -306,6 +341,94 @@ export function AddProjectSheet({ open, onClose }: { open: boolean; onClose: () 
       <div className="border-t border-line bg-white px-5 py-3.5">
         <Button size="lg" full disabled={!name.trim() || !description.trim()} onClick={save}>
           Save project
+        </Button>
+      </div>
+    </Sheet>
+  );
+}
+
+/**
+ * Add or edit a role. Experience is the other half of the evidence the fit engine reads
+ * (CLAUDE.md section 5) — a skill used in a job outranks one merely claimed — so it has
+ * to be editable rather than parsed once and frozen.
+ */
+export function AddExperienceSheet({
+  open,
+  onClose,
+  experience,
+}: {
+  open: boolean;
+  onClose: () => void;
+  experience?: Experience;
+}) {
+  const { dispatch } = useStore();
+  const [role, setRole] = useState(experience?.role ?? '');
+  const [company, setCompany] = useState(experience?.company ?? '');
+  const [mode, setMode] = useState(experience?.mode ?? 'Remote');
+  const [period, setPeriod] = useState(experience?.period ?? '');
+  const [summary, setSummary] = useState(experience?.summary ?? '');
+
+  const save = () => {
+    const next: Experience = {
+      id: experience?.id ?? `e-${Date.now()}`,
+      role: role.trim(),
+      company: company.trim(),
+      mode,
+      period: period.trim(),
+      summary: summary.trim(),
+    };
+    dispatch(
+      experience
+        ? { type: 'updateExperience', experience: next }
+        : { type: 'addExperience', experience: next },
+    );
+    if (!experience) {
+      setRole('');
+      setCompany('');
+      setPeriod('');
+      setSummary('');
+    }
+    onClose();
+  };
+
+  return (
+    <Sheet open={open} onClose={onClose} heightPct={88}>
+      <SheetHeader title={experience ? 'Edit experience' : 'Add experience'} onClose={onClose} />
+      <div className="flex-1 space-y-3 overflow-y-auto no-scrollbar px-5 pb-4">
+        <Field label="Role" value={role} onChange={setRole} placeholder="Frontend Developer Intern" />
+        <Field label="Company" value={company} onChange={setCompany} placeholder="Frappe" />
+        <div>
+          <span className="mb-1.5 block text-[12px] font-semibold text-ink-500">Work mode</span>
+          <div className="flex gap-2">
+            {['Remote', 'Hybrid', 'On-site'].map((m) => (
+              <Chip key={m} selected={mode === m} onClick={() => setMode(m)} className="flex-1">
+                {m}
+              </Chip>
+            ))}
+          </div>
+        </div>
+        <Field
+          label="Period"
+          value={period}
+          onChange={setPeriod}
+          placeholder="May 2024 – Aug 2024 · 4 months"
+        />
+        <label className="block">
+          <span className="mb-1.5 block text-[12px] font-semibold text-ink-500">What you did</span>
+          <textarea
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            placeholder="What you built, and what it changed."
+            className="h-[86px] w-full resize-none rounded-md border border-line bg-white p-3 text-[14px] placeholder:text-ink-300"
+          />
+        </label>
+        <p className="text-[11.5px] text-ink-300">
+          Naming the tools you used here counts as evidence and raises your fit score.
+        </p>
+      </div>
+      <div className="border-t border-line bg-white px-5 py-3.5">
+        <Button size="lg" full disabled={!role.trim() || !company.trim()} onClick={save}>
+          Save experience
         </Button>
       </div>
     </Sheet>
