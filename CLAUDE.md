@@ -3,16 +3,19 @@
 > AI-powered internship matchmaking. Students swipe. Companies choose. The AI explains why.
 
 **Status:** Student app and company dashboard both built and running against **one shared
-Supabase database**, over a shared fit engine in `packages/core/`. Auth and real AI to follow.
+Supabase database**, over a shared fit engine in `packages/core/`. Student sign-up creates a
+real account and the profile is editable end to end. Passwords, OAuth and real AI to follow.
 **Products:** A student mobile app and a company web dashboard. Two surfaces, one brand.
 
 | Where | What |
 |---|---|
 | `supabase/` | Schema, RLS, the write API, and the demo dataset. Supabase owns runtime data |
+| `supabase/functions/` | The Edge Functions that hold the model key. `parse-resume` reads a PDF into a profile |
 | `packages/core/` | Shared domain types and the fit engine — the one copy both apps read |
 | `packages/data/` | The Supabase layer both apps import: queries, mutations, row mappers |
 | `student-app/` | The working student app — Vite + React + TS + Tailwind |
 | `company-dashboard/` | The working company dashboard — Vite + React + TS + Tailwind |
+| `brand/` | The logo and banner, installed into both apps by `scripts/brand.mjs` |
 | `figma-build-guide.md` | Paste-by-paste Figma Make prompts |
 | `figma-prompts.md` | Full screen-by-screen design spec |
 | Student designs | https://dun-rival-31434366.figma.site |
@@ -166,6 +169,12 @@ Sign up with email, Google or LinkedIn. **No phone OTP** — email is needed any
 notifications, LinkedIn OAuth doubles as light identity verification, and SMS in India
 carries DLT registration overhead for no gain.
 
+**Signing up creates a real account.** `create_student()` writes a `students` row and the
+app runs as it from that moment: an empty profile, an empty deck history, and fit scores
+that climb as the student fills themselves in. Nothing is inherited from the demo student.
+No password is stored yet — see §10. The Google and LinkedIn buttons are demo shortcuts
+into `anika-sharma`, so a presentation can start inside a populated app in one tap.
+
 Then a fork, with the resume path recommended:
 
 - **Upload resume (recommended).** AI parses it into a structured profile. The student
@@ -221,6 +230,21 @@ A bottom sheet. *What you bring* — green rows with specific evidence. *What to
 **learning list**. The learning list aggregates gaps across all applications and ranks
 them by demand: *"Docker — wanted by 6 of your applications."* This turns rejection into
 direction and gives students a reason to return.
+
+### The profile
+
+Editable, and every edit is a write. Name, email, phone, degree, university, graduation
+year, a **profile photo**, skills (add and remove), projects (add, edit, delete),
+experience (add, edit, delete) and links all go to Supabase through
+`save_student_profile()`, debounced so typing is one write rather than thirty.
+
+This matters more than it looks: the profile *is* the input to the fit engine, so editing
+it re-ranks the deck. Adding an internship visibly moves the scores on the next card.
+
+The photo is stored as a downscaled data URL on `students.avatar_url` — the demo has no
+storage bucket, and the column takes a real URL unchanged when one arrives. Both products
+render it: the student's own header and profile, and every candidate row, drawer, pipeline
+card and chat bubble on the company side.
 
 ### Applications
 
@@ -366,25 +390,43 @@ gate, and auth, file storage for resumes and realtime for chat all come in the b
 Schema, the write API and the demo dataset live in `supabase/migrations/`.
 
 Reads are public and every write is a `security definer` function granted to `anon`. That
-is what makes the selection gate airtight rather than merely conventional. There is no
-authentication yet: one student (`anika-sharma`) and one company (`technova`) are
-hard-coded in each app's `src/lib/db.ts`, and every query is already scoped by id, so
-adding auth is a change of constant plus a `where` clause in the policies.
+is what makes the selection gate airtight rather than merely conventional.
+
+**Accounts, but not yet authentication.** A student signing up gets a real `students` row
+and the app runs as that id, which is held in `localStorage` alongside whether onboarding
+finished. `sign_in_student()` matches on email alone and **no password is stored** — a demo
+has no business holding a credential it cannot protect, and a fake password column would
+read as one. The company dashboard is still hard-coded to `technova`. Every query on both
+sides is already scoped by id, so real auth is a change of where the id comes from plus a
+`where` clause in the policies.
 
 Neither app holds a second copy of anything. Both poll every four seconds, which is what
 makes the cross-app flow visible during a demo; realtime would replace polling later.
 
-**AI:** Claude for resume parsing, fit reasoning and summarisation. Embeddings for
+**AI:** Gemini (`gemini-3.8-flash`) for resume parsing today; fit reasoning, the note
+draft, the resume summary and suggested replies still to come. Embeddings for
 semantic skill matching so *React* relates to *frontend development* without exact
 string equality.
+
+**Where the key lives.** Both apps ship their Supabase anon key to the browser on purpose
+— it can only read, and every write is a security-definer function. A model provider's key
+is a spend credential and gets none of that latitude: it is a Supabase function secret, and
+`supabase/functions/` is the only code that can see it. Every AI feature therefore goes
+app → `packages/data` → an Edge Function → the provider, the same shape as every database
+call. Nothing in either bundle knows a provider exists.
+
+A parse writes nothing. It returns a proposal, the student confirms it on the review
+screen, and the ordinary profile save stores it — so the confirmation step in section 6 is
+structural, not just a screen that can be skipped past.
 
 ### Phasing
 
 1. ~~Figma designs for both products~~
 2. ~~Company web dashboard with mock data~~
 3. ~~Student app with mock data~~
-4. ~~Supabase: schema, the selection gate, one dataset both apps read~~ · auth still to do
-5. AI: resume parsing, then fit scoring, then the resume summary
+4. ~~Supabase: schema, the selection gate, one dataset both apps read~~ · ~~student accounts
+   and profile writes~~ · passwords and OAuth still to do
+5. AI: ~~resume parsing~~ · fit scoring, then the resume summary, still to do
 6. ~~Chat~~ · works end to end; realtime instead of polling still to do
 
 ### Restoring the demo
@@ -426,6 +468,9 @@ Quality references: Linear's precision, Stripe's restraint, Notion's warmth.
 2. Reuse components. No duplicates. No giant page-sized components.
 3. Runtime data lives in Supabase, reached only through `packages/data`. Never inline a
    company, job, student, application or conversation in a component or a data file.
+   Corollary: both apps poll, so anything editable on screen must be **written**, not held
+   in component state. Local-only edits are silently undone by the next poll four seconds
+   later — that is what `profileDirty` in the student store exists to manage.
 4. Fit scores are computed, never stored. If you find yourself writing a percentage into a
    row or a component, you have taken a wrong turn.
 5. Don't change the design direction without discussing it first.

@@ -24,7 +24,8 @@ the product.
 | **Company dashboard (code)** | **Built and running — [`company-dashboard/`](company-dashboard)** |
 | **Shared fit engine** | **Both apps read [`packages/core/`](packages/core)** |
 | **Database** | **Supabase — one dataset, both apps. [`supabase/`](supabase)** |
-| Auth | Not started — one hard-coded student, one hard-coded company |
+| Accounts | Student sign-up is real; passwords and OAuth still to come |
+| Auth | Not started — reads are public, every write is a database function |
 
 Both apps are working React apps, not click-throughs, and they now read and write **the
 same Supabase database**. A student applying on the phone appears in the recruiter's
@@ -44,9 +45,13 @@ npm install --prefix packages/data && npm install --prefix student-app && npm in
 Then copy `.env.example` to `.env` in **both** apps and paste the project's publishable
 (anon) key into each. Same project, same key, both files — that is the point.
 
-If the database is empty, apply the three files in
+If the database is empty, apply the files in
 [`supabase/migrations/`](supabase/migrations) in order, in the Supabase SQL editor. See
 [`supabase/README.md`](supabase/README.md).
+
+The InSwipe logo and banner live in [`brand/`](brand). Drop the two PNGs in and run
+`node scripts/brand.mjs` to install them into both apps; without them each app draws an
+indigo fallback mark and everything still runs.
 
 On Windows, `start.bat` in the repo root brings up both apps, each in its own window, and
 `stop.bat` shuts them both down.
