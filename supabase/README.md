@@ -23,8 +23,14 @@ Run these in order, in the SQL editor of the project
 | `migrations/0002_rls_and_rpcs.sql` | Read-only RLS plus every write, as a function |
 | `migrations/0003_demo_dataset.sql` | Defines `demo_reset()` and calls it once |
 | `migrations/0004_accounts_and_profile.sql` | Student accounts, and the write behind every profile edit |
+| `migrations/0005_org_and_team.sql` | Hiring teams — organizations, members, and email-code invites (company dashboard only) |
+| `migrations/0006_domain_verification.sql` | Work-email verification for company onboarding |
 
 They are idempotent — re-running any of them is safe.
+
+`0005`/`0006` are additive: no existing table, function or policy changes, and the
+student app imports none of it. The invite and verification codes live in tables with
+RLS on and no read policy — the only way to reach one is through the functions.
 
 ## Resetting the demo
 
@@ -85,6 +91,18 @@ the ordinary `save_student_profile()` call stores it.
 Without the secret the function answers `503 not_configured`, and the student app falls
 back to the scripted stand-in it used before — the seeded profile, applied to whoever is
 signing up, with a toast saying so. A checkout of this repo with no key still demos.
+
+`functions/send-code` e-mails the 6-digit code for a team invite or work-email
+verification (the code itself is minted in `challenge_invite()` / `verify_domain_start()`
+— this only delivers it). It exists as a function for the same key reason.
+
+1. Project Settings → Edge Functions → Secrets → add `RESEND_API_KEY` (a
+   [Resend](https://resend.com) key), and optionally `SEND_CODE_FROM`
+   (e.g. `"InSwipe <team@yourdomain.com>"`).
+2. Deploy: `supabase functions deploy send-code`.
+
+Without the secret it answers `503 not_configured` and the dashboard shows the code on
+screen instead, so the invite and verification flows still work end to end.
 
 **Reading a failure.** The function logs the provider's own response before answering, so
 Edge Function logs in the dashboard say whether a parse failed on the key, the file or the

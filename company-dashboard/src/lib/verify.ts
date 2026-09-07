@@ -1,15 +1,17 @@
-import { SYNC_URL } from "./sync";
+import { db } from "./db";
 
 /**
- * Domain-verification calls against the local sync server. The server sends a
- * real 6-digit code by email when SMTP is configured (see sync-server/.env);
- * with no SMTP set it returns the code in `devCode` and logs it, so the flow
- * still works offline.
+ * Work-email (domain) verification, on Supabase.
+ *
+ * verify_domain_start / verify_domain_check are the security-definer RPCs in
+ * supabase/migrations/0006_domain_verification.sql. The 6-digit code is e-mailed
+ * by the send-code Edge Function; with no email provider configured it comes back
+ * in `devCode` and the onboarding screen shows it, so the flow still works.
  */
 
 export interface StartResult {
   ok: boolean;
-  /** present only when the server has no SMTP configured */
+  /** present only when no email provider is configured */
   devCode?: string;
   /** address the mail was (or would be) sent to, e.g. verify@technova.ai */
   sentTo: string;
@@ -24,33 +26,31 @@ export interface CheckResult {
 
 export async function startDomainVerification(email: string, company: string): Promise<StartResult> {
   try {
-    const res = await fetch(`${SYNC_URL}/api/verify/start`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, company }),
-    });
-    const data = (await res.json()) as StartResult;
-    if (!res.ok) return { ok: false, sentTo: "", error: data.error || "Could not send the verification email." };
-    return data;
+    const { data, error } = await db.rpc("verify_domain_start", { p_email: email, p_company: company });
+    if (error) return { ok: false, sentTo: "", error: error.message || "Could not start verification." };
+    const res = data as { sentTo: string; code: string };
+
+    let emailed = false;
+    try {
+      const invoke = await db.functions.invoke("send-code", {
+        body: { to: email, code: res.code, kind: "verify", context: company },
+      });
+      emailed = !invoke.error;
+    } catch {
+      emailed = false;
+    }
+
+    return { ok: true, sentTo: res.sentTo, devCode: emailed ? undefined : res.code };
   } catch {
-    return {
-      ok: false,
-      sentTo: "",
-      error: `Could not reach the verification service at ${SYNC_URL}. Is the sync server running? (cd sync-server && npm start)`,
-    };
+    return { ok: false, sentTo: "", error: "Could not reach the verification service." };
   }
 }
 
 export async function checkDomainVerification(email: string, code: string): Promise<CheckResult> {
   try {
-    const res = await fetch(`${SYNC_URL}/api/verify/check`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, code }),
-    });
-    const data = (await res.json()) as CheckResult;
-    if (!res.ok) return { ok: false, verified: false, error: data.error || "That code didn't match." };
-    return data;
+    const { data, error } = await db.rpc("verify_domain_check", { p_email: email, p_code: code });
+    if (error) return { ok: false, verified: false, error: error.message || "That code didn't match." };
+    return { ok: true, verified: Boolean((data as { verified: boolean }).verified) };
   } catch {
     return { ok: false, verified: false, error: "Could not reach the verification service." };
   }
