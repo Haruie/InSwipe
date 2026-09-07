@@ -1,20 +1,29 @@
 /**
  * Emails a 6-digit code — team invites (0005) and work-email verification (0006).
  *
- * It exists as a function for the same reason as parse-resume: the provider key.
- * The database mints the code (in challenge_invite / verify_domain_start); the
- * client posts it here to be delivered. Nothing is stored.
+ * It exists as a function for the same reason as parse-resume: the provider
+ * credential. The database mints the code (in challenge_invite / verify_domain_start);
+ * the client posts it here to be delivered. Nothing is stored.
  *
- * Without RESEND_API_KEY the function answers 503 { error: "not_configured" } and
- * the dashboard falls back to showing the code on screen, so a checkout of this
- * repo with no key still demos the flow.
+ * Delivery is plain SMTP (nodemailer-style), so a normal mailbox — a Gmail
+ * account with 2FA and an App Password — can send the code to ANY recipient on
+ * ANY domain. No sending-domain verification, no email-provider account.
  *
- *   Project Settings -> Edge Functions -> Secrets -> add RESEND_API_KEY
- *   (optional) SEND_CODE_FROM  e.g. "InSwipe <team@yourdomain.com>"
+ * Without SMTP_USER / SMTP_PASS the function answers 503 { error: "not_configured" }
+ * and the dashboard falls back to showing the code on screen, so a checkout of
+ * this repo with no secrets still demos the flow.
+ *
+ *   Project Settings -> Edge Functions -> Secrets -> add:
+ *     SMTP_HOST   smtp.gmail.com            (default; any SMTP host works)
+ *     SMTP_PORT   465                       (default; 587 also works — STARTTLS)
+ *     SMTP_USER   you@gmail.com
+ *     SMTP_PASS   your 16-char App Password  https://myaccount.google.com/apppasswords
+ *     SMTP_FROM   "InSwipe <you@gmail.com>" (optional; defaults to SMTP_USER)
  *   supabase functions deploy send-code
  */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -35,9 +44,14 @@ interface Payload {
   inviter?: string;
 }
 
-const FROM = Deno.env.get("SEND_CODE_FROM") ?? "InSwipe <onboarding@resend.dev>";
+const HOST = Deno.env.get("SMTP_HOST") ?? "smtp.gmail.com";
+const PORT = Number(Deno.env.get("SMTP_PORT") ?? "465");
+const USER = Deno.env.get("SMTP_USER") ?? "";
+// App passwords are often shown in "abcd efgh ijkl mnop" groups — strip the spaces.
+const PASS = (Deno.env.get("SMTP_PASS") ?? "").replace(/\s+/g, "");
+const FROM = Deno.env.get("SMTP_FROM") || USER;
 
-function body({ code, kind, context, inviter }: Payload) {
+function message({ code, kind, context, inviter }: Payload) {
   const safe = (code ?? "").replace(/[^0-9]/g, "").slice(0, 6);
   if (kind === "verify") {
     return {
@@ -55,8 +69,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
-  const key = Deno.env.get("RESEND_API_KEY");
-  if (!key) return json({ error: "not_configured", message: "RESEND_API_KEY is not set on this project." }, 503);
+  if (!USER || !PASS) {
+    return json({ error: "not_configured", message: "SMTP_USER / SMTP_PASS are not set on this project." }, 503);
+  }
 
   let payload: Payload;
   try {
@@ -71,18 +86,29 @@ Deno.serve(async (req) => {
     return json({ error: "bad_request", message: "A 6-digit code is required." }, 400);
   }
 
-  const { subject, text } = body(payload);
+  const { subject, text } = message(payload);
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: FROM, to: [to], subject, text }),
+  const client = new SMTPClient({
+    connection: {
+      hostname: HOST,
+      port: PORT,
+      // 465 = implicit TLS; anything else (e.g. 587) upgrades with STARTTLS.
+      tls: PORT === 465,
+      auth: { username: USER, password: PASS },
+    },
   });
 
-  if (!res.ok) {
-    const detail = await res.text();
-    console.error("[send-code] provider rejected", res.status, detail);
-    return json({ error: "provider_error", message: "The email provider rejected the request." }, 502);
+  try {
+    await client.send({ from: FROM, to, subject, content: text });
+    await client.close();
+  } catch (err) {
+    console.error("[send-code] SMTP send failed", err instanceof Error ? err.message : err);
+    try {
+      await client.close();
+    } catch {
+      /* already closed */
+    }
+    return json({ error: "provider_error", message: "The mail server rejected the request." }, 502);
   }
 
   return json({ ok: true, sentTo: to });

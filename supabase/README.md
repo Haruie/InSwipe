@@ -97,13 +97,24 @@ signing up, with a toast saying so. A checkout of this repo with no key still de
 verification (the code itself is minted in `challenge_invite()` / `verify_domain_start()`
 — this only delivers it). It exists as a function for the same key reason.
 
-1. Project Settings → Edge Functions → Secrets → add `RESEND_API_KEY` (a
-   [Resend](https://resend.com) key), and optionally `SEND_CODE_FROM`
-   (e.g. `"InSwipe <team@yourdomain.com>"`).
+Delivery is plain SMTP, so a normal mailbox — a Gmail account with 2FA and an
+[App Password](https://myaccount.google.com/apppasswords) — sends the code to **any
+recipient on any domain**. No sending-domain verification, no email-provider account.
+
+1. Project Settings → Edge Functions → Secrets → add:
+
+   | Secret | Value |
+   |---|---|
+   | `SMTP_USER` | `you@gmail.com` |
+   | `SMTP_PASS` | the 16-character App Password |
+   | `SMTP_FROM` | *(optional)* `"InSwipe <you@gmail.com>"` — defaults to `SMTP_USER` |
+   | `SMTP_HOST` | *(optional)* defaults to `smtp.gmail.com` |
+   | `SMTP_PORT` | *(optional)* defaults to `465`; `587` also works |
+
 2. Deploy: `supabase functions deploy send-code`.
 
-Without the secret it answers `503 not_configured` and the dashboard shows the code on
-screen instead, so the invite and verification flows still work end to end.
+Without `SMTP_USER` / `SMTP_PASS` it answers `503 not_configured` and the dashboard shows
+the code on screen instead, so the invite and verification flows still work end to end.
 
 **Reading a failure.** The function logs the provider's own response before answering, so
 Edge Function logs in the dashboard say whether a parse failed on the key, the file or the
