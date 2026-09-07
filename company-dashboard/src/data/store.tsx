@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { Company, Conversation } from "@inswipe/core";
+import type { Company } from "@inswipe/core";
 import {
   loadCatalog,
   loadCompanyWorkspace,
@@ -10,38 +10,192 @@ import {
   sendMessage,
   setApplicationStage,
   setJobStatus,
+  stipendLabel,
+  relativeLabel,
+  type ApplicantRecord,
   type Catalog,
   type CompanyWorkspace,
-  type PipelineStage,
+  type Conversation as CoreConversation,
+  type JobListing,
   type RecruiterRow,
 } from "@inswipe/data";
 import { DEMO_COMPANY_ID, db } from "../lib/db";
-import { rankCandidates, type Candidate } from "./candidates";
-import { withCounts, type JobPosting } from "./jobs";
-import { buildAnalytics, buildAttention, type AnalyticsData, type AttentionItem } from "./analytics";
+import { computeFit } from "../lib/fit";
+import type { Candidate, Conversation, Job, KanbanStage, Message } from "./mock";
 
-/** How often the dashboard asks Supabase whether a student has done anything. */
+/** How often the dashboard re-reads Supabase (a student applying on a phone shows up here). */
 const SYNC_INTERVAL_MS = 4000;
+
+/* ── recruiter-only flags Supabase does not carry ──────────────────────────
+   "Saved for later" and "not a fit" are review notes the dashboard keeps for
+   itself; there is no column for them, so they live in localStorage keyed by
+   student id and are merged onto every candidate on read. */
+const SAVED_KEY = "inswipe.savedCandidates.v1";
+const NOTFIT_KEY = "inswipe.notFitCandidates.v1";
+
+function readIdSet(key: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(key);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+function writeIdSet(key: string, set: Set<string>) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...set]));
+  } catch {
+    /* private mode — the flag just won't survive a reload */
+  }
+}
+
+/* ── row → local shape mappers ────────────────────────────────────────────── */
+
+function toLocalJob(listing: JobListing, candidates: Candidate[], conversations: Conversation[]): Job {
+  const mine = candidates.filter((c) => c.jobId === listing.id);
+  const ids = new Set(mine.map((c) => c.id));
+  return {
+    id: listing.id,
+    title: listing.title,
+    department: listing.department,
+    location: listing.workMode === "Remote" ? "Remote" : `${listing.location} · ${listing.workMode}`,
+    type: listing.type,
+    status: listing.status,
+    applicants: mine.length,
+    selected: mine.filter((c) => c.selected).length,
+    conversations: conversations.filter((cv) => ids.has(cv.candidateId)).length,
+    posted: listing.posted,
+    deadline: listing.deadline,
+    requiredSkills: listing.requiredSkills,
+    preferredSkills: listing.preferredSkills,
+    description: listing.about,
+    stipend: stipendLabel(listing),
+  };
+}
+
+const initialsOf = (name: string) =>
+  name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+
+function toLocalCandidate({ application, student }: ApplicantRecord, listing: JobListing): Candidate {
+  const fit = computeFit(student, listing);
+  const jobSkills = new Set(
+    [...listing.requiredSkills, ...listing.preferredSkills].map((s) => s.toLowerCase()),
+  );
+  const skillFits = fit.fits.filter((f) => jobSkills.has(f.label.toLowerCase()));
+  const first = student.name.split(" ")[0];
+  const blocker = fit.gaps.find((g) => g.required);
+  const aiExplain = skillFits.length
+    ? `${first} covers ${skillFits.slice(0, 3).map((f) => f.label).join(", ")} with evidence behind it.${
+        blocker
+          ? ` ${blocker.label} is the gap that matters — it is required here.`
+          : " No required skill is missing."
+      }`
+    : `${first} does not evidence any of this role's required skills.`;
+
+  return {
+    id: student.id,
+    jobId: application.jobId,
+    rank: 0,
+    name: student.name,
+    initials: initialsOf(student.name),
+    avatarColor: student.avatarColor,
+    school: student.university,
+    degree: student.degree,
+    year: student.yearLabel,
+    gradYear: student.gradYear,
+    fitScore: fit.score,
+    aiExplain,
+    note: application.note,
+    fits: skillFits.map((f) => f.label),
+    fitDetails: skillFits.map((f) => ({ skill: f.label, explanation: f.reason })),
+    lacks: fit.gaps.map((g) => g.label),
+    lackDetails: fit.gaps.map((g) => ({ skill: g.label, explanation: g.reason })),
+    fitBreakdown: fit.breakdown,
+    projects: student.projects.map((p) => ({ name: p.name, description: p.description, tech: p.tech })),
+    experience: student.experience.map((e) => ({
+      role: e.role,
+      company: e.company,
+      duration: e.period,
+      description: e.summary,
+    })),
+    availability: application.availability,
+    preferences: application.preferenceNotes,
+    stage: application.stage as KanbanStage,
+    selected: application.status === "selected",
+    gpa: student.gpa,
+    location: student.location,
+    resumeSummary: application.resumeSummary,
+    resumeFile: application.resumeAttached ?? student.resumeFile,
+    githubUrl: student.links.github ? `https://${student.links.github}` : undefined,
+    portfolioUrl: student.links.portfolio ? `https://${student.links.portfolio}` : undefined,
+    isLive: true,
+  };
+}
+
+/** Ranked best-fit-first within each job — the rank is the score, never stored. */
+function rankByJob(cands: Candidate[]): Candidate[] {
+  const byJob = new Map<string, Candidate[]>();
+  for (const c of cands) {
+    const list = byJob.get(c.jobId) ?? [];
+    list.push(c);
+    byJob.set(c.jobId, list);
+  }
+  return [...byJob.values()].flatMap((list) =>
+    list.sort((a, b) => b.fitScore - a.fitScore).map((c, i) => ({ ...c, rank: i + 1 })),
+  );
+}
+
+function toLocalConversation(
+  conv: CoreConversation,
+  candidateName: string,
+  candidateInitials: string,
+  avatarColor: string,
+  jobTitle: string,
+): Conversation {
+  const messages: Message[] = conv.messages.map((m) => ({
+    id: m.id,
+    sender: m.fromCompany ? "company" : "candidate",
+    text: m.text,
+    time: m.time,
+  }));
+  const last = conv.messages[conv.messages.length - 1];
+  return {
+    id: conv.id,
+    candidateId: conv.studentId,
+    candidateName,
+    candidateInitials,
+    avatarColor,
+    jobTitle,
+    lastMessage: last?.text ?? "",
+    lastTime: conv.lastLabel || relativeLabel(new Date().toISOString()),
+    unread: conv.unread,
+    messages,
+  };
+}
+
+/* ── context ─────────────────────────────────────────────────────────────── */
 
 interface DashboardValue {
   company: Company;
   recruiter: RecruiterRow | null;
-  jobs: JobPosting[];
-  /** every applicant to this company, ranked within their own role */
+  jobs: Job[];
   candidates: Candidate[];
   conversations: Conversation[];
-  analytics: AnalyticsData;
-  attention: AttentionItem[];
   candidateById: (id: string) => Candidate | undefined;
-  jobById: (id: string) => JobPosting | undefined;
-  /** THE GATE — writes the selection that opens a conversation. Returns its id. */
-  select: (candidate: Candidate, message?: string) => Promise<string>;
-  changeStage: (candidate: Candidate, stage: PipelineStage) => Promise<void>;
-  changeJobStatus: (jobId: string, status: JobPosting["status"]) => Promise<void>;
-  duplicate: (jobId: string) => Promise<void>;
+  jobById: (id: string) => Job | undefined;
+
+  /** THE GATE — writes the selection that opens a conversation. */
+  selectWithMessage: (candidate: Candidate, message: string) => Promise<void>;
+  select: (id: string) => Promise<void>;
+  unselect: (id: string) => Promise<void>;
+  changeStage: (id: string, stage: KanbanStage) => Promise<void>;
+  toggleSaved: (id: string) => void;
+  markNotFit: (id: string) => void;
+  reconsider: (id: string) => void;
+  changeJobStatus: (id: string, status: Job["status"]) => Promise<void>;
+  duplicate: (id: string) => Promise<void>;
   reply: (conversationId: string, text: string) => Promise<void>;
   markRead: (conversationId: string) => Promise<void>;
-  /** Demo only: rebuilds the presentation dataset. See `ResetDemoModal`. */
   resetDemo: () => Promise<string>;
   refresh: () => Promise<void>;
 }
@@ -53,50 +207,28 @@ export interface DashboardBoot {
   workspace: CompanyWorkspace;
 }
 
-/** Loaded once before the app mounts, in `main.tsx`. */
 export async function loadDashboard(): Promise<DashboardBoot> {
   const catalog = await loadCatalog(db);
   const workspace = await loadCompanyWorkspace(db, DEMO_COMPANY_ID, catalog);
   return { catalog, workspace };
 }
 
-export function DashboardProvider({
-  boot,
-  children,
-}: {
-  boot: DashboardBoot;
-  children: React.ReactNode;
-}) {
+export function DashboardProvider({ boot, children }: { boot: DashboardBoot; children: React.ReactNode }) {
   const [catalog, setCatalog] = useState(boot.catalog);
   const [workspace, setWorkspace] = useState(boot.workspace);
+  const [saved, setSaved] = useState<Set<string>>(() => readIdSet(SAVED_KEY));
+  const [notFit, setNotFit] = useState<Set<string>>(() => readIdSet(NOTFIT_KEY));
 
-  /**
-   * Demo only. `demo_reset()` can be run from Settings here, from the student app or
-   * from `scripts/demo.mjs`, and it rebuilds every runtime row. Nothing else deletes an
-   * application, so an id that was here a moment ago and is gone now means the dataset
-   * was restored underneath this tab — reload onto it, rather than leave the dashboard
-   * holding candidates and threads that no longer exist.
-   */
-  const knownApplications = useRef(
-    new Set(boot.workspace.applicants.map((a) => a.application.id)),
-  );
+  useEffect(() => writeIdSet(SAVED_KEY, saved), [saved]);
+  useEffect(() => writeIdSet(NOTFIT_KEY, notFit), [notFit]);
 
   const refresh = useCallback(async () => {
-    const next = await loadCatalog(db);
-    const nextWorkspace = await loadCompanyWorkspace(db, DEMO_COMPANY_ID, next);
-
-    const ids = new Set(nextWorkspace.applicants.map((a) => a.application.id));
-    for (const id of knownApplications.current) {
-      if (!ids.has(id)) return window.location.reload();
-    }
-    knownApplications.current = ids;
-
-    setCatalog(next);
+    const nextCatalog = await loadCatalog(db);
+    const nextWorkspace = await loadCompanyWorkspace(db, DEMO_COMPANY_ID, nextCatalog);
+    setCatalog(nextCatalog);
     setWorkspace(nextWorkspace);
   }, []);
 
-  // The student app is a separate process writing to the same tables. Poll, so an
-  // application submitted on a phone appears in this list without a reload.
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   useEffect(() => {
@@ -107,82 +239,137 @@ export function DashboardProvider({
   }, []);
 
   const value = useMemo<DashboardValue>(() => {
-    const candidates = rankCandidates(workspace.applicants, catalog.jobsById);
-    const jobs = withCounts(workspace.jobs, candidates, workspace.conversations);
+    void catalog;
+    const companyJobs = workspace.jobs;
+    const jobsById = new Map(companyJobs.map((j) => [j.id, j]));
+
+    const candidates = rankByJob(
+      workspace.applicants
+        .map((a) => {
+          const listing = jobsById.get(a.application.jobId);
+          return listing ? toLocalCandidate(a, listing) : null;
+        })
+        .filter((c): c is Candidate => c !== null)
+        .map((c) => ({ ...c, saved: saved.has(c.id), notFit: notFit.has(c.id) })),
+    );
+
+    const candIndex = new Map(candidates.map((c) => [c.id, c]));
+    const conversations = workspace.conversations.map((cv) => {
+      const cand = candIndex.get(cv.studentId);
+      const listing = jobsById.get(cv.jobId);
+      return toLocalConversation(
+        cv,
+        cand?.name ?? "Candidate",
+        cand?.initials ?? "?",
+        cand?.avatarColor ?? "#EEF0FF",
+        listing?.title ?? "",
+      );
+    });
+
+    const jobs = companyJobs.map((j) => toLocalJob(j, candidates, conversations));
     const candidateById = (id: string) => candidates.find((c) => c.id === id);
     const jobById = (id: string) => jobs.find((j) => j.id === id);
-
-    const unread = workspace.conversations
-      .filter((c) => c.unread > 0)
-      .map((c) => ({
-        candidateId: c.studentId,
-        name: candidateById(c.studentId)?.name ?? c.studentId,
-        conversationId: c.id,
-      }));
+    const applicationIdOf = (studentId: string) =>
+      workspace.applicants.find((a) => a.student.id === studentId)?.application.id ?? null;
 
     return {
       company: workspace.company,
       recruiter: workspace.recruiter,
       jobs,
       candidates,
-      conversations: workspace.conversations,
-      analytics: buildAnalytics(jobs, candidates),
-      attention: buildAttention(jobs, candidates, unread),
+      conversations,
       candidateById,
       jobById,
 
-      async select(candidate, message) {
-        const conversationId = await selectCandidate(db, {
-          applicationId: candidate.applicationId,
+      async selectWithMessage(candidate, message) {
+        const appId = applicationIdOf(candidate.id);
+        if (!appId) return;
+        await selectCandidate(db, {
+          applicationId: appId,
           recruiterId: workspace.recruiter?.id ?? null,
-          message,
+          message: message || undefined,
+        });
+        setNotFit((s) => {
+          const n = new Set(s);
+          n.delete(candidate.id);
+          return n;
         });
         await refresh();
-        return conversationId;
       },
-
-      async changeStage(candidate, stage) {
-        await setApplicationStage(db, candidate.applicationId, stage);
+      async select(id) {
+        const appId = applicationIdOf(id);
+        if (!appId) return;
+        await selectCandidate(db, { applicationId: appId, recruiterId: workspace.recruiter?.id ?? null });
+        setNotFit((s) => {
+          const n = new Set(s);
+          n.delete(id);
+          return n;
+        });
         await refresh();
       },
-
-      async changeJobStatus(jobId, status) {
-        await setJobStatus(db, jobId, status);
+      async unselect(id) {
+        const appId = applicationIdOf(id);
+        if (!appId) return;
+        await setApplicationStage(db, appId, "Reviewed");
         await refresh();
       },
-
-      async duplicate(jobId) {
-        await duplicateJob(db, jobId);
+      async changeStage(id, stage) {
+        const appId = applicationIdOf(id);
+        if (!appId) return;
+        await setApplicationStage(db, appId, stage);
         await refresh();
       },
-
+      toggleSaved(id) {
+        setSaved((s) => {
+          const n = new Set(s);
+          if (n.has(id)) n.delete(id);
+          else n.add(id);
+          return n;
+        });
+      },
+      markNotFit(id) {
+        setNotFit((s) => new Set(s).add(id));
+        setSaved((s) => {
+          const n = new Set(s);
+          n.delete(id);
+          return n;
+        });
+      },
+      reconsider(id) {
+        setNotFit((s) => {
+          const n = new Set(s);
+          n.delete(id);
+          return n;
+        });
+      },
+      async changeJobStatus(id, status) {
+        await setJobStatus(db, id, status);
+        await refresh();
+      },
+      async duplicate(id) {
+        await duplicateJob(db, id);
+        await refresh();
+      },
       async reply(conversationId, text) {
         await sendMessage(db, conversationId, true, text);
         await refresh();
       },
-
       async markRead(conversationId) {
         await markConversationRead(db, conversationId, true);
         await refresh();
       },
-
-      /**
-       * Demo only. The caller reloads the page afterwards — every list on screen is a
-       * view of rows this call has just replaced.
-       */
       resetDemo() {
         return resetDemoData(db);
       },
-
       refresh,
     };
-  }, [catalog, workspace, refresh]);
+  }, [catalog, workspace, saved, notFit, refresh]);
 
   return <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>;
 }
 
-export function useDashboard() {
+export function useDashboard(): DashboardValue {
   const ctx = useContext(DashboardContext);
-  if (!ctx) throw new Error("useDashboard must be used inside DashboardProvider");
+  if (!ctx) throw new Error("useDashboard must be used inside <DashboardProvider>");
   return ctx;
 }

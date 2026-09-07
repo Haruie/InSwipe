@@ -1,14 +1,17 @@
 import { useState } from "react";
 import type { Page } from "../App";
-import type { JobPosting as Job } from "../data/jobs";
-import { useDashboard } from "../data/store";
-import { locationLabel, stipendLabel } from "../data/jobs";
+import type { Candidate, Conversation, Job } from "../data/mock";
+import { jobStats } from "../data/mock";
 
 interface Props {
   onNavigate: (page: Page) => void;
   jobs: Job[];
+  candidates: Candidate[];
+  conversations: Conversation[];
   onOpenPostJob: () => void;
   onSelectJob: (id: string) => void;
+  onChangeJobStatus: (id: string, status: Job["status"]) => void;
+  onDuplicateJob: (id: string) => void;
 }
 
 const StatusBadge = ({ status }: { status: Job["status"] }) => {
@@ -26,8 +29,9 @@ const StatusBadge = ({ status }: { status: Job["status"] }) => {
   );
 };
 
-function JobCard({ job, onNavigate, onSelectJob, onOpenPostJob, onChangeJobStatus, onDuplicateJob, delay }: {
-  job: Job; onNavigate: (p: Page) => void; onSelectJob: (id: string) => void; onOpenPostJob: () => void;
+function JobCard({ job, stats, onNavigate, onSelectJob, onOpenPostJob, onChangeJobStatus, onDuplicateJob, delay }: {
+  job: Job; stats: { applicants: number; selected: number; conversations: number };
+  onNavigate: (p: Page) => void; onSelectJob: (id: string) => void; onOpenPostJob: () => void;
   onChangeJobStatus: (id: string, status: Job["status"]) => void; onDuplicateJob: (id: string) => void; delay: number;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -54,10 +58,10 @@ function JobCard({ job, onNavigate, onSelectJob, onOpenPostJob, onChangeJobStatu
           <div className="flex items-center gap-4">
             <span className="text-[12px] flex items-center gap-1" style={{ color: "#6B7280" }}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-              {locationLabel(job)}
+              {job.location}
             </span>
             <span className="text-[12px]" style={{ color: "#6B7280" }}>{job.type}</span>
-            <span className="text-[12px] font-semibold" style={{ color: "#4F46E5" }}>{stipendLabel(job)}</span>
+            <span className="text-[12px] font-semibold" style={{ color: "#4F46E5" }}>{job.stipend}</span>
           </div>
         </div>
 
@@ -92,7 +96,7 @@ function JobCard({ job, onNavigate, onSelectJob, onOpenPostJob, onChangeJobStatu
         </div>
       </div>
 
-      <p className="text-[13px] leading-relaxed mb-5" style={{ color: "#6B7280" }}>{job.about}</p>
+      <p className="text-[13px] leading-relaxed mb-5" style={{ color: "#6B7280" }}>{job.description}</p>
 
       <div className="mb-5 space-y-2">
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -107,9 +111,9 @@ function JobCard({ job, onNavigate, onSelectJob, onOpenPostJob, onChangeJobStatu
 
       <div className="flex items-center gap-6 pt-4" style={{ borderTop: "1px solid #E8E8EF" }}>
         {[
-          { label: "Applicants",     value: job.applicants,     accent: "#0F1117" },
-          { label: "Selected",       value: job.selected,       accent: job.selected > 0 ? "#16A34A" : "#0F1117" },
-          { label: "Conversations",  value: job.conversations,  accent: job.conversations > 0 ? "#4F46E5" : "#0F1117" },
+          { label: "Applicants",     value: stats.applicants,    accent: "#0F1117" },
+          { label: "Selected",       value: stats.selected,      accent: stats.selected > 0 ? "#16A34A" : "#0F1117" },
+          { label: "Conversations",  value: stats.conversations, accent: stats.conversations > 0 ? "#4F46E5" : "#0F1117" },
         ].map(stat => (
           <div key={stat.label} className="text-center">
             <div className="text-[18px] font-bold" style={{ color: stat.accent }}>{stat.value}</div>
@@ -129,10 +133,7 @@ function JobCard({ job, onNavigate, onSelectJob, onOpenPostJob, onChangeJobStatu
   );
 }
 
-export default function MyJobs({ onNavigate, jobs, onOpenPostJob, onSelectJob }: Props) {
-  const { changeJobStatus, duplicate } = useDashboard();
-  const onChangeJobStatus = (id: string, status: Job["status"]) => void changeJobStatus(id, status);
-  const onDuplicateJob = (id: string) => void duplicate(id);
+export default function MyJobs({ onNavigate, jobs, candidates, conversations, onOpenPostJob, onSelectJob, onChangeJobStatus, onDuplicateJob }: Props) {
   const [filter, setFilter] = useState<"All" | "Active" | "Paused" | "Closed">("All");
   const filtered = filter === "All" ? jobs : jobs.filter(j => j.status === filter);
 
@@ -206,6 +207,7 @@ export default function MyJobs({ onNavigate, jobs, onOpenPostJob, onSelectJob }:
             <JobCard
               key={job.id}
               job={job}
+              stats={jobStats(job.id, candidates, conversations)}
               onNavigate={onNavigate}
               onSelectJob={onSelectJob}
               onOpenPostJob={onOpenPostJob}

@@ -1,21 +1,36 @@
 import { useState, useEffect } from "react";
 import type { Page } from "../App";
-import { fitBand } from "@inswipe/core";
-import type { Candidate } from "../data/candidates";
-import type { JobPosting as Job } from "../data/jobs";
-import { useDashboard } from "../data/store";
+import type { Candidate, Job } from "../data/mock";
+import { fitBand } from "../data/mock";
 import CandidateDrawer from "../components/CandidateDrawer";
 import SelectionModal from "../components/SelectionModal";
 import FitScoreRing from "../components/FitScoreRing";
 import ResumeViewerModal from "../components/ResumeViewerModal";
-import CandidateAvatar from "../components/CandidateAvatar";
 
 interface Props {
   onNavigate: (page: Page) => void;
   candidates: Candidate[];
   jobs: Job[];
   currentJob: Job;
-  onOpenConversation: (conversationId: string) => void;
+  onSelectJob: (id: string) => void;
+  onSelectCandidate: (id: string) => void;
+  onSelectWithMessage: (candidate: Candidate, message: string) => void;
+  onUnselectCandidate: (id: string) => void;
+  onSaveCandidate: (id: string) => void;
+  onNotFit: (id: string) => void;
+  onReconsider: (id: string) => void;
+  onStageChange: (id: string, stage: Candidate["stage"]) => void;
+  /** Fired instead of/alongside the local select flow for the one live candidate (see App.tsx). */
+  onLiveSelect?: (message: string) => void;
+  /** Candidate to auto-open in the drawer (from Dashboard / search). */
+  focusCandidateId?: string | null;
+  onClearFocus?: () => void;
+  /** Query typed in the top search bar. */
+  globalSearch?: string;
+  onClearGlobalSearch?: () => void;
+  /** Stage filter to pre-apply on arrival (e.g. "Saved" from the dashboard). */
+  initialFilter?: string | null;
+  onClearInitialFilter?: () => void;
 }
 
 // ── Filter chips ───────────────────────────────────────────
@@ -45,11 +60,12 @@ interface CardProps {
   candidate: Candidate;
   onOpen: () => void;
   onSelect: () => void;
+  onSave: () => void;
   onViewResume: () => void;
   delay: number;
 }
 
-function CandidateCard({ candidate: c, onOpen, onSelect, onViewResume, delay }: CardProps) {
+function CandidateCard({ candidate: c, onOpen, onSelect, onSave, onViewResume, delay }: CardProps) {
   return (
     <div
       className="card-hover anim-lift-in rounded-[20px] border flex gap-0 overflow-hidden"
@@ -72,13 +88,31 @@ function CandidateCard({ candidate: c, onOpen, onSelect, onViewResume, delay }: 
       <div className="flex-1 min-w-0 p-5">
         {/* Name row */}
         <div className="flex items-start gap-3 mb-3">
-          <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={40} radius={12} fontSize={13} />
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-[13px] font-bold flex-shrink-0"
+            style={{ background: c.avatarColor, color: "#4F46E5" }}
+          >
+            {c.initials}
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-[14px] font-semibold" style={{ color: "#0F1117" }}>{c.name}</span>
-              <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ background: "#F7F7FB", color: "#9CA3AF" }}>#{c.rank}</span>
+              {c.isLive ? (
+                <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold flex items-center gap-1" style={{ background: "#FEF2F2", color: "#DC2626" }}>
+                  <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "#DC2626", display: "inline-block" }} />
+                  Live from student app
+                </span>
+              ) : (
+                <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ background: "#F7F7FB", color: "#9CA3AF" }}>#{c.rank}</span>
+              )}
               {c.selected && (
                 <span className="chip-selected text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: "#DCFCE7", color: "#15803D" }}>✓ Selected</span>
+              )}
+              {c.notFit && !c.selected && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: "#FEF2F2", color: "#DC2626" }}>Not a fit</span>
+              )}
+              {c.saved && !c.selected && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: "#FFFBEB", color: "#B45309" }}>★ Saved</span>
               )}
             </div>
             <div className="text-[12px] mt-0.5" style={{ color: "#374151" }}>{c.degree} · {c.school}</div>
@@ -160,13 +194,26 @@ function CandidateCard({ candidate: c, onOpen, onSelect, onViewResume, delay }: 
           </button>
         </div>
         {!c.selected ? (
-          <button
-            onClick={onSelect}
-            className="btn-press text-[12px] font-semibold px-4 py-2 rounded-lg transition-all duration-150 mt-2"
-            style={{ background: "#EEF0FF", color: "#4F46E5" }}
-          >
-            Select
-          </button>
+          <div className="flex flex-col gap-2 mt-2">
+            <button
+              onClick={onSelect}
+              className="btn-press text-[12px] font-semibold px-4 py-2 rounded-lg transition-all duration-150"
+              style={{ background: "#EEF0FF", color: "#4F46E5" }}
+            >
+              Select
+            </button>
+            <button
+              onClick={onSave}
+              className="btn-press text-[12px] font-medium px-4 py-2 rounded-lg border transition-all duration-150"
+              style={{
+                background: c.saved ? "#FFFBEB" : "#F7F7FB",
+                borderColor: c.saved ? "#FDE68A" : "#E8E8EF",
+                color: c.saved ? "#B45309" : "#6B7280",
+              }}
+            >
+              {c.saved ? "★ Saved" : "☆ Save"}
+            </button>
+          </div>
         ) : (
           <div className="text-[12px] font-medium px-3 py-2 rounded-lg mt-2" style={{ background: "#DCFCE7", color: "#15803D" }}>
             ✓ Selected
@@ -186,7 +233,7 @@ function CompareCard({ candidate: c, onOpen }: { candidate: Candidate; onOpen: (
       style={{ background: "#FFFFFF", borderColor: "#E8E8EF", boxShadow: "0 1px 3px rgba(15,17,23,0.06)" }}
     >
       <div className="flex items-start justify-between mb-3">
-        <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={40} radius={12} fontSize={13} />
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[13px] font-bold" style={{ background: c.avatarColor, color: "#4F46E5" }}>{c.initials}</div>
         <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: "#F7F7FB", color: "#9CA3AF" }}>#{c.rank}</span>
       </div>
       <div className="mb-1 text-[13px] font-semibold" style={{ color: "#0F1117" }}>{c.name}</div>
@@ -282,15 +329,52 @@ function EmptyApplicants({ filtered, onReset }: { filtered: boolean; onReset: ()
   );
 }
 
-export default function Applicants({ onNavigate, candidates, currentJob, onOpenConversation }: Props) {
-  const { company, select, changeStage } = useDashboard();
-  const [drawerCandidate, setDrawerCandidate] = useState<Candidate | null>(null);
+export default function Applicants({
+  onNavigate, candidates: allCandidates, jobs, currentJob, onSelectJob,
+  onSelectWithMessage, onUnselectCandidate, onSaveCandidate,
+  onNotFit, onReconsider,
+  focusCandidateId, onClearFocus, globalSearch, onClearGlobalSearch,
+  initialFilter, onClearInitialFilter,
+}: Props) {
+  // Only the people who applied to the currently-selected role.
+  const candidates = allCandidates.filter(c => c.jobId === currentJob.id);
+
+  const [drawerCandidateId, setDrawerCandidateId] = useState<string | null>(null);
   const [selectionCandidate, setSelectionCandidate] = useState<Candidate | null>(null);
   const [resumeCandidate, setResumeCandidate] = useState<Candidate | null>(null);
   const [view, setView] = useState<"list" | "compare">("list");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(globalSearch ?? "");
+
+  // Always read the live candidate object so the drawer reflects select/save/etc.
+  const drawerCandidate = allCandidates.find(c => c.id === drawerCandidateId) ?? null;
+
+  // Open the drawer for a candidate handed in from Dashboard / global search —
+  // switching to their job first if needed.
+  useEffect(() => {
+    if (!focusCandidateId) return;
+    const target = allCandidates.find(c => c.id === focusCandidateId);
+    if (!target) return;
+    if (target.jobId !== currentJob.id) onSelectJob(target.jobId);
+    setDrawerCandidateId(focusCandidateId);
+    onClearFocus?.();
+  }, [focusCandidateId, allCandidates, currentJob.id, onSelectJob, onClearFocus]);
+
+  // Seed the search box from a top-bar search, once.
+  useEffect(() => {
+    if (globalSearch) {
+      setSearch(globalSearch);
+      onClearGlobalSearch?.();
+    }
+  }, [globalSearch, onClearGlobalSearch]);
   const [sortBy, setSortBy] = useState<"fit" | "name" | "school">("fit");
-  const [filterStage, setFilterStage] = useState("All");
+  const [filterStage, setFilterStage] = useState(initialFilter ?? "All");
+
+  useEffect(() => {
+    if (initialFilter) {
+      setFilterStage(initialFilter);
+      onClearInitialFilter?.();
+    }
+  }, [initialFilter, onClearInitialFilter]);
   const [activeFilterChip, setActiveFilterChip] = useState<FilterKey | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [hasNoteOnly, setHasNoteOnly] = useState(false);
@@ -319,7 +403,11 @@ export default function Applicants({ onNavigate, candidates, currentJob, onOpenC
     .filter(c => {
       const q = search.toLowerCase();
       const matchSearch = !q || c.name.toLowerCase().includes(q) || c.school.toLowerCase().includes(q) || c.fits.some(f => f.toLowerCase().includes(q));
-      const matchStage = filterStage === "All" || c.stage === filterStage;
+      const matchStage =
+        filterStage === "All" ? true :
+        filterStage === "Saved" ? !!c.saved :
+        filterStage === "Not a fit" ? !!c.notFit :
+        c.stage === filterStage;
       const matchNote = !hasNoteOnly || !!c.note;
       const matchSkill = !filters.skill || c.fits.includes(filters.skill);
       const matchAvailability = !filters.availability || availabilityOf(c) === filters.availability;
@@ -340,16 +428,13 @@ export default function Applicants({ onNavigate, candidates, currentJob, onOpenC
     if (c && !c.selected) setSelectionCandidate(c);
   };
 
-  /**
-    * THE GATE (CLAUDE.md section 3, rule 2). One write creates the `selections` row, the
-    * conversation hanging off it and the company's opening message. Nothing here can
-    * open a thread on its own, and the student app sees it on its next poll.
-    */
-  const handleConfirmSelection = async (message?: string) => {
+  // message === "" means "select without sending a first message".
+  const handleConfirmSelection = (message: string) => {
     if (!selectionCandidate) return;
-    const conversationId = await select(selectionCandidate, message);
+    onSelectWithMessage(selectionCandidate, message);
+    const wasLive = selectionCandidate.isLive;
     setSelectionCandidate(null);
-    onOpenConversation(conversationId);
+    setTimeout(() => onNavigate(message || wasLive ? "inbox" : "pipeline"), 400);
   };
 
   // Inject section dividers for list view
@@ -371,8 +456,9 @@ export default function Applicants({ onNavigate, candidates, currentJob, onOpenC
         <CandidateCard
           key={c.id}
           candidate={c}
-          onOpen={() => setDrawerCandidate(c)}
+          onOpen={() => setDrawerCandidateId(c.id)}
           onSelect={() => handleSelect(c.id)}
+          onSave={() => onSaveCandidate(c.id)}
           onViewResume={() => setResumeCandidate(c)}
           delay={i * 0.05}
         />
@@ -386,10 +472,19 @@ export default function Applicants({ onNavigate, candidates, currentJob, onOpenC
       {/* Controls bar */}
       <div className="flex-shrink-0" style={{ background: "#FFFFFF", borderBottom: "1px solid #E8E8EF" }}>
         {/* Top row */}
-        <div className="flex items-center gap-3 px-7 py-3">
+        <div className="flex items-center flex-wrap gap-3 px-7 py-3">
           <div className="flex items-center gap-2 pr-4" style={{ borderRight: "1px solid #E8E8EF" }}>
             <span className="text-[12px]" style={{ color: "#9CA3AF" }}>Role:</span>
-            <span className="text-[13px] font-medium" style={{ color: "#0F1117" }}>{currentJob.title}</span>
+            <select
+              value={currentJob.id}
+              onChange={e => onSelectJob(e.target.value)}
+              className="rounded-[10px] px-2.5 py-1.5 text-[13px] font-medium outline-none"
+              style={{ background: "#F7F7FB", border: "1px solid #E8E8EF", color: "#0F1117", cursor: "pointer" }}
+            >
+              {jobs.map(j => (
+                <option key={j.id} value={j.id}>{j.title}{j.status !== "Active" ? ` (${j.status})` : ""}</option>
+              ))}
+            </select>
           </div>
 
           {/* Search */}
@@ -412,8 +507,8 @@ export default function Applicants({ onNavigate, candidates, currentJob, onOpenC
             className="rounded-[10px] px-3 py-2 text-[13px] outline-none"
             style={{ background: "#F7F7FB", border: "1px solid #E8E8EF", color: "#374151" }}
           >
-            {["All", "Applied", "Reviewed", "Selected", "In Conversation"].map(s => (
-              <option key={s} value={s}>{s}</option>
+            {["All", "Applied", "Reviewed", "Selected", "In Conversation", "Saved", "Not a fit"].map(s => (
+              <option key={s} value={s}>{s === "All" ? "All stages" : s}</option>
             ))}
           </select>
 
@@ -566,7 +661,7 @@ export default function Applicants({ onNavigate, candidates, currentJob, onOpenC
         ) : (
           <div className="grid grid-cols-4 gap-4 max-w-[1100px]">
             {sorted.slice(0, 4).map(c => (
-              <CompareCard key={c.id} candidate={c} onOpen={() => setDrawerCandidate(c)} />
+              <CompareCard key={c.id} candidate={c} onOpen={() => setDrawerCandidateId(c.id)} />
             ))}
           </div>
         )}
@@ -576,9 +671,12 @@ export default function Applicants({ onNavigate, candidates, currentJob, onOpenC
       {drawerCandidate && (
         <CandidateDrawer
           candidate={drawerCandidate}
-          onClose={() => setDrawerCandidate(null)}
-          onSelect={id => { handleSelect(id); setDrawerCandidate(null); }}
-          onNotFit={id => { const c = candidates.find(x => x.id === id); if (c) void changeStage(c, "Reviewed"); setDrawerCandidate(null); }}
+          onClose={() => setDrawerCandidateId(null)}
+          onSelect={id => { handleSelect(id); setDrawerCandidateId(null); }}
+          onUnselect={id => onUnselectCandidate(id)}
+          onSave={id => onSaveCandidate(id)}
+          onNotFit={id => { onNotFit(id); setDrawerCandidateId(null); }}
+          onReconsider={id => onReconsider(id)}
           onViewResume={() => setResumeCandidate(drawerCandidate)}
         />
       )}
@@ -596,8 +694,6 @@ export default function Applicants({ onNavigate, candidates, currentJob, onOpenC
       {selectionCandidate && (
         <SelectionModal
           candidate={selectionCandidate}
-          jobTitle={currentJob.title}
-          companyName={company.name}
           onConfirm={handleConfirmSelection}
           onCancel={() => setSelectionCandidate(null)}
         />

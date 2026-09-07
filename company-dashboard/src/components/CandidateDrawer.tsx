@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import type { Candidate } from "../data/candidates";
+import type { Candidate } from "../data/mock";
 import FitScoreRing from "./FitScoreRing";
-import CandidateAvatar from "./CandidateAvatar";
 
 interface Props {
   candidate: Candidate;
   onClose: () => void;
   onSelect: (id: string) => void;
+  onUnselect: (id: string) => void;
+  onSave: (id: string) => void;
   onNotFit: (id: string) => void;
+  onReconsider: (id: string) => void;
   onViewResume?: () => void;
 }
 
@@ -26,7 +28,7 @@ function BreakdownBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-export default function CandidateDrawer({ candidate: c, onClose, onSelect, onNotFit, onViewResume }: Props) {
+export default function CandidateDrawer({ candidate: c, onClose, onSelect, onUnselect, onSave, onNotFit, onReconsider, onViewResume }: Props) {
   const [visible, setVisible] = useState(false);
   useEffect(() => { const t = setTimeout(() => setVisible(true), 10); return () => clearTimeout(t); }, []);
 
@@ -61,7 +63,9 @@ export default function CandidateDrawer({ candidate: c, onClose, onSelect, onNot
           {/* Hero */}
           <div className="px-6 py-5" style={{ borderBottom: "1px solid #E8E8EF" }}>
             <div className="flex items-start gap-4">
-              <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={48} radius={12} fontSize={14} />
+              <div className="flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ color: "#4F46E5", background: c.avatarColor, width: 48, height: 48, borderRadius: 12 }}>
+                {c.initials}
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-semibold" style={{ color: "#0F1117" }}>{c.name}</h2>
@@ -231,38 +235,80 @@ export default function CandidateDrawer({ candidate: c, onClose, onSelect, onNot
 
         {/* Footer */}
         <div style={{ borderTop: "1px solid #E8E8EF" }}>
-          <p className="px-6 pt-3 pb-1 text-[12px] text-center" style={{ color: "#9CA3AF" }}>
-            Selecting notifies the candidate and opens a conversation.
-          </p>
-          <div className="flex items-center gap-3 px-6 pb-4">
-            <button
-              onClick={() => { onNotFit(c.id); close(); }}
-              className="btn-press flex-1 py-2.5 rounded-xl text-[13px] font-medium border transition-all duration-150"
-              style={{ background: "#FFFFFF", border: "1px solid #DC2626", color: "#DC2626" }}
-            >
-              Not a Fit
-            </button>
-            <button
-              onClick={close}
-              className="btn-press flex-1 py-2.5 rounded-xl text-[13px] font-medium border transition-all duration-150"
-              style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#F59E0B" }}
-            >
-              ★ Save for Later
-            </button>
-            {!c.selected ? (
-              <button
-                onClick={() => { onSelect(c.id); close(); }}
-                className="btn-press flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white"
-                style={{ background: "#4F46E5", boxShadow: "0 4px 12px rgba(79,70,229,0.28)" }}
-              >
-                Select Candidate
-              </button>
-            ) : (
-              <div className="flex-1 py-2.5 rounded-xl text-[13px] font-medium text-center" style={{ background: "#DCFCE7", color: "#15803D" }}>
-                ✓ Selected
+          {c.selected ? (
+            <>
+              <p className="px-6 pt-3 pb-1 text-[12px] text-center" style={{ color: "#9CA3AF" }}>
+                Selected — a conversation is open with this candidate.
+              </p>
+              <div className="flex items-center gap-3 px-6 pb-4">
+                <button
+                  onClick={() => { onUnselect(c.id); }}
+                  className="btn-press flex-1 py-2.5 rounded-xl text-[13px] font-medium border transition-all duration-150"
+                  style={{ background: "#FFFFFF", border: "1px solid #E8E8EF", color: "#6B7280" }}
+                >
+                  Unselect
+                </button>
+                <div className="flex-1 py-2.5 rounded-xl text-[13px] font-medium text-center" style={{ background: "#DCFCE7", color: "#15803D" }}>
+                  ✓ Selected
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          ) : c.notFit ? (
+            <>
+              <p className="px-6 pt-3 pb-1 text-[12px] text-center" style={{ color: "#9CA3AF" }}>
+                Marked not a fit — hidden from your shortlist.
+              </p>
+              <div className="flex items-center gap-3 px-6 pb-4">
+                <button
+                  onClick={() => { onReconsider(c.id); }}
+                  className="btn-press flex-1 py-2.5 rounded-xl text-[13px] font-medium border transition-all duration-150"
+                  style={{ background: "#FFFFFF", border: "1px solid #E8E8EF", color: "#374151" }}
+                >
+                  Reconsider
+                </button>
+                <button
+                  onClick={() => { onSelect(c.id); close(); }}
+                  className="btn-press flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white"
+                  style={{ background: "#4F46E5", boxShadow: "0 4px 12px rgba(79,70,229,0.28)" }}
+                >
+                  Select Anyway
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="px-6 pt-3 pb-1 text-[12px] text-center" style={{ color: "#9CA3AF" }}>
+                Selecting notifies the candidate and opens a conversation.
+              </p>
+              <div className="flex items-center gap-3 px-6 pb-4">
+                <button
+                  onClick={() => { onNotFit(c.id); close(); }}
+                  className="btn-press flex-1 py-2.5 rounded-xl text-[13px] font-medium border transition-all duration-150"
+                  style={{ background: "#FFFFFF", border: "1px solid #DC2626", color: "#DC2626" }}
+                >
+                  Not a Fit
+                </button>
+                <button
+                  onClick={() => onSave(c.id)}
+                  className="btn-press flex-1 py-2.5 rounded-xl text-[13px] font-medium border transition-all duration-150"
+                  style={{
+                    background: c.saved ? "#FEF3C7" : "#FFFBEB",
+                    border: `1px solid ${c.saved ? "#F59E0B" : "#FDE68A"}`,
+                    color: c.saved ? "#92400E" : "#F59E0B",
+                  }}
+                >
+                  {c.saved ? "★ Saved" : "☆ Save for Later"}
+                </button>
+                <button
+                  onClick={() => { onSelect(c.id); close(); }}
+                  className="btn-press flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-white"
+                  style={{ background: "#4F46E5", boxShadow: "0 4px 12px rgba(79,70,229,0.28)" }}
+                >
+                  Select Candidate
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>
