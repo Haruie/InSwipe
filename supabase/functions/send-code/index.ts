@@ -37,6 +37,8 @@ const json = (body: unknown, status = 200) =>
 interface Payload {
   to?: string;
   code?: string;
+  /** invite only: the join link, e-mailed straight to the invitee */
+  link?: string;
   kind?: "invite" | "verify";
   /** invite: the team name; verify: the company name */
   context?: string;
@@ -51,7 +53,7 @@ const USER = Deno.env.get("SMTP_USER") ?? "";
 const PASS = (Deno.env.get("SMTP_PASS") ?? "").replace(/\s+/g, "");
 const FROM = Deno.env.get("SMTP_FROM") || USER;
 
-function message({ code, kind, context, inviter }: Payload) {
+function message({ code, link, kind, context, inviter }: Payload) {
   const safe = (code ?? "").replace(/[^0-9]/g, "").slice(0, 6);
   if (kind === "verify") {
     return {
@@ -59,9 +61,23 @@ function message({ code, kind, context, inviter }: Payload) {
       text: `Confirm this address for ${context || "your company"} on InSwipe.\n\nYour code is ${safe}. It expires when you request a new one.\n\nIf you did not start this, you can ignore this email.`,
     };
   }
+
+  const team = context || "their team";
+  const who = inviter || "Someone";
+
+  // Invite with a join link — the primary path. The link opens the accept page,
+  // which e-mails a fresh 6-digit code to confirm the address.
+  if (link) {
+    const codeLine = safe ? `\n\nYour code, if the page asks for one: ${safe}` : "";
+    return {
+      subject: `${who} invited you to join ${team} on InSwipe`,
+      text: `${who} invited you to join ${team} on InSwipe.\n\nOpen this link to join:\n${link}${codeLine}\n\nIf you were not expecting this, you can ignore this email.`,
+    };
+  }
+
   return {
     subject: `Your InSwipe invite code: ${safe}`,
-    text: `${inviter || "Someone"} invited you to join ${context || "their team"} on InSwipe.\n\nYour code is ${safe}. Enter it on the invite page to join.\n\nIf you were not expecting this, you can ignore this email.`,
+    text: `${who} invited you to join ${team} on InSwipe.\n\nYour code is ${safe}. Enter it on the invite page to join.\n\nIf you were not expecting this, you can ignore this email.`,
   };
 }
 
@@ -82,8 +98,10 @@ Deno.serve(async (req) => {
 
   const to = (payload.to ?? "").trim();
   if (!to || !to.includes("@")) return json({ error: "bad_request", message: "A recipient email is required." }, 400);
-  if (!/^\d{6}$/.test((payload.code ?? "").trim())) {
-    return json({ error: "bad_request", message: "A 6-digit code is required." }, 400);
+
+  const hasLink = typeof payload.link === "string" && /^https?:\/\//.test(payload.link);
+  if (!hasLink && !/^\d{6}$/.test((payload.code ?? "").trim())) {
+    return json({ error: "bad_request", message: "A 6-digit code or an invite link is required." }, 400);
   }
 
   const { subject, text } = message(payload);
