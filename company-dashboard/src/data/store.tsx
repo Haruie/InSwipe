@@ -193,6 +193,7 @@ interface DashboardValue {
   markNotFit: (id: string) => void;
   reconsider: (id: string) => void;
   changeJobStatus: (id: string, status: Job["status"]) => Promise<void>;
+  createJob: (job: Job) => Promise<void>;
   duplicate: (id: string) => Promise<void>;
   reply: (conversationId: string, text: string) => Promise<void>;
   markRead: (conversationId: string) => Promise<void>;
@@ -344,6 +345,27 @@ export function DashboardProvider({ boot, children }: { boot: DashboardBoot; chi
       },
       async changeJobStatus(id, status) {
         await setJobStatus(db, id, status);
+        await refresh();
+      },
+      async createJob(job) {
+        // The modal packs "<city> · <mode>" into location and a "₹35,000/month"
+        // string into stipend; the row wants them apart and the stipend a number.
+        const [loc, mode] = (job.location || "").split(" · ");
+        const stipend = parseInt((job.stipend || "").replace(/[^0-9]/g, ""), 10) || 0;
+        const { error } = await db.rpc("create_job", {
+          p_company_id: DEMO_COMPANY_ID,
+          p_title: job.title,
+          p_department: job.department,
+          p_location: (loc || "").trim(),
+          p_work_mode: (mode || "").trim() || "Hybrid",
+          p_stipend: stipend,
+          p_about: job.description,
+          p_required_skills: job.requiredSkills,
+          p_preferred_skills: job.preferredSkills,
+          p_employment_type: job.type,
+          p_deadline: job.deadline,
+        });
+        if (error) throw new Error(error.message || "Could not post the job.");
         await refresh();
       },
       async duplicate(id) {

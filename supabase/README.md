@@ -25,6 +25,7 @@ Run these in order, in the SQL editor of the project
 | `migrations/0004_accounts_and_profile.sql` | Student accounts, and the write behind every profile edit |
 | `migrations/0005_org_and_team.sql` | Hiring teams — organizations, members, and email-code invites (company dashboard only) |
 | `migrations/0006_domain_verification.sql` | Work-email verification for company onboarding |
+| `migrations/0007_post_a_job.sql` | `create_job()` — the write behind "Post a Job" |
 
 They are idempotent — re-running any of them is safe.
 

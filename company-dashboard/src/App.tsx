@@ -126,11 +126,11 @@ export default function App() {
     setGlobalSearch(q);
     navigate("applicants");
   };
-  const handleCreateJob = (_job: Job) => {
-    // No create-job RPC yet — close the modal and re-read so nothing looks stale.
-    setPostJobOpen(false);
-    void dash.refresh();
-    navigate("jobs");
+  const handleCreateJob = (job: Job) => {
+    void dash.createJob(job).catch(() => {}).finally(() => {
+      setPostJobOpen(false);
+      navigate("jobs");
+    });
   };
 
   const pageProps = {
