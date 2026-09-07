@@ -36,14 +36,15 @@ for real. Nothing about the flow is simulated any more.
 
 ## Run it
 
-First time only — install dependencies and point both apps at Supabase:
+First time only — install dependencies:
 
 ```bash
 npm install --prefix packages/data && npm install --prefix student-app && npm install --prefix company-dashboard
 ```
 
-Then copy `.env.example` to `.env` in **both** apps and paste the project's publishable
-(anon) key into each. Same project, same key, both files — that is the point.
+Both apps ship a committed `.env` with the demo project's URL and publishable (anon)
+key — client-safe by design, so `npm run dev` works straight after a clone. Point
+somewhere else by editing those files or adding a `.env.local`.
 
 If the database is empty, apply the files in
 [`supabase/migrations/`](supabase/migrations) in order, in the Supabase SQL editor. See
