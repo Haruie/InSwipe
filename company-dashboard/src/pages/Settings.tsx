@@ -260,7 +260,7 @@ function InviteModal({ onInvite, onClose }: { onInvite: (name: string, email: st
     <div className="fixed inset-0 z-50 flex items-center justify-center overlay-backdrop" style={{ background: "rgba(15,17,23,0.5)", backdropFilter: "blur(4px)" }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="anim-scale-spring rounded-[24px] p-7 w-[420px] mx-4 overflow-y-auto" style={{ background: "#FFFFFF", border: "1px solid #E8E8EF", boxShadow: "0 8px 24px rgba(15,17,23,0.10)", maxHeight: "90vh" }}>
         <h3 className="text-[16px] font-semibold mb-1" style={{ color: "#0F1117" }}>Invite a team member</h3>
-        <p className="text-[13px] mb-5" style={{ color: "#9CA3AF" }}>We&apos;ll email them a link to join your hiring team.</p>
+        <p className="text-[13px] mb-5" style={{ color: "#9CA3AF" }}>You&apos;ll get a join link to send them; they confirm with an e-mailed code.</p>
 
         <div className="space-y-4">
           <div>
@@ -340,8 +340,20 @@ function TeamSection() {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [menuDirection, setMenuDirection] = useState<"down" | "up">("down");
   const [flash, setFlash] = useState<string | null>(null);
+  /** The join link from the last invite, shown to copy when it wasn't emailed. */
+  const [inviteLink, setInviteLink] = useState<{ url: string; who: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const showFlash = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(null), 3500); };
+
+  const copyLink = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink.url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard blocked — the link is still selectable in the field */ }
+  };
 
   const MENU_EST_HEIGHT = 190;
   const toggleMenu = (id: string, anchor: HTMLElement) => {
@@ -355,9 +367,13 @@ function TeamSection() {
     const res = await inviteMember({ name, email, role });
     if (!res.ok) return res.error ?? "Could not send the invite.";
     setInviteOpen(false);
-    showFlash(res.emailed === false
-      ? `Invite recorded for ${name} — no mail server, share the link manually`
-      : `Invite emailed to ${email}`);
+    if (res.emailed === false && res.inviteLink) {
+      setInviteLink({ url: res.inviteLink, who: name });
+      showFlash(`Invite created for ${name} — send them the link below`);
+    } else {
+      setInviteLink(null);
+      showFlash(`Invite emailed to ${email}`);
+    }
     return null;
   };
 
@@ -368,9 +384,14 @@ function TeamSection() {
     const m = account.team.find(t => t.id === id);
     if (!m) return;
     const res = await inviteMember({ name: m.name, email: m.email, role: m.role });
-    showFlash(res.ok
-      ? (res.emailed === false ? `Re-recorded invite for ${m.name} (no mail server)` : `Invite re-sent to ${m.email}`)
-      : (res.error ?? "Could not resend the invite."));
+    if (!res.ok) { showFlash(res.error ?? "Could not resend the invite."); return; }
+    if (res.emailed === false && res.inviteLink) {
+      setInviteLink({ url: res.inviteLink, who: m.name });
+      showFlash(`New link created for ${m.name} — send it below`);
+    } else {
+      setInviteLink(null);
+      showFlash(`Invite re-sent to ${m.email}`);
+    }
   };
 
   const remove = (id: string) => { removeMember(id); setMenuOpenId(null); };
@@ -482,6 +503,39 @@ function TeamSection() {
         <div className="px-6 py-3 flex items-center gap-2 anim-fade-in" style={{ borderTop: "1px solid #E8E8EF", background: "#F0FDF4" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6 9 17l-5-5"/></svg>
           <span className="text-[12px] font-medium" style={{ color: "#15803D" }}>{flash}</span>
+        </div>
+      )}
+
+      {inviteLink && (
+        <div className="px-6 py-4 anim-fade-in" style={{ borderTop: "1px solid #E8E8EF", background: "#FAFBFF" }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[12px] font-semibold" style={{ color: "#374151" }}>Join link for {inviteLink.who}</span>
+            <button
+              onClick={() => setInviteLink(null)}
+              className="text-[11px]" style={{ color: "#9CA3AF", background: "none", border: "none", cursor: "pointer" }}
+            >
+              Dismiss
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              readOnly
+              value={inviteLink.url}
+              onFocus={(e) => e.currentTarget.select()}
+              className="flex-1 text-[12px] px-3 py-2 rounded-lg"
+              style={{ background: "#FFFFFF", border: "1px solid #E8E8EF", color: "#4F46E5" }}
+            />
+            <button
+              onClick={copyLink}
+              className="btn-press text-[12px] font-semibold px-4 py-2 rounded-lg text-white flex-shrink-0"
+              style={{ background: copied ? "#16A34A" : "#4F46E5" }}
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <p className="text-[11px] mt-2" style={{ color: "#9CA3AF" }}>
+            Send this to {inviteLink.who}. They open it, enter a 6-digit code we e-mail them, and join the team.
+          </p>
         </div>
       )}
     </section>
