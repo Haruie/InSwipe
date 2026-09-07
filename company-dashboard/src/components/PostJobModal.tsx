@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useDashboard } from "../data/store";
+import type { Job } from "../data/mock";
 
-interface Props { onClose: () => void; }
+interface Props { onClose: () => void; onCreate?: (job: Job) => void; }
 
 const STEPS = ["Role Basics", "Requirements", "Logistics", "Review & Publish"];
 
@@ -30,44 +30,27 @@ function PhoneFrame({ children }: { children: React.ReactNode }) {
 }
 
 function StudentCard({ form }: { form: any }) {
-  // Read from the real company row rather than restating it: this panel's whole claim
-  // is that it shows what the student will see, and the student's card leads with the
-  // company's cover image.
-  const { company } = useDashboard();
-  const [coverFailed, setCoverFailed] = useState(false);
+  const hasRequired = form.requiredSkills.length > 0;
   const studFits = form.requiredSkills.slice(0, 3);
   const studLacks = form.preferredSkills.slice(0, 2);
 
   return (
     <div className="mx-2 rounded-[20px] overflow-hidden" style={{ background: "#FFFFFF", boxShadow: "0 4px 12px rgba(15,17,23,0.08)", border: "1px solid #E8E8EF" }}>
-      {/* Cover — the gradient stays under the image, exactly as it does on the card */}
-      <div className="relative" style={{ height: 84, background: company.gradient }}>
-        {company.coverUrl && !coverFailed && (
-          <img
-            src={company.coverUrl}
-            alt=""
-            aria-hidden
-            onError={() => setCoverFailed(true)}
-            className="absolute inset-0 w-full h-full"
-            style={{ objectFit: "cover" }}
-          />
-        )}
-        <div className="absolute top-2.5 right-3 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "#FFFFFF", color: "#15803D" }}>
-          92% fit
-        </div>
-      </div>
-
       {/* Card header */}
       <div className="px-4 pt-4 pb-3 relative">
+        {/* 92% fit pill */}
+        <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[11px] font-bold" style={{ background: "#DCFCE7", color: "#15803D" }}>
+          92% fit
+        </div>
         {/* Company */}
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[12px] font-bold text-white" style={{ background: company.color }}>{company.initial}</div>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[12px] font-bold text-white" style={{ background: "#4F46E5" }}>T</div>
           <div>
-            <div className="text-[11px] font-semibold" style={{ color: "#0F1117" }}>{company.name}</div>
-            <div className="text-[10px]" style={{ color: "#9CA3AF" }}>{company.industry}</div>
+            <div className="text-[11px] font-semibold" style={{ color: "#0F1117" }}>TechNova</div>
+            <div className="text-[10px]" style={{ color: "#9CA3AF" }}>AI Infrastructure</div>
           </div>
         </div>
-        <h4 className="text-[13px] font-bold mb-1" style={{ color: "#0F1117" }}>{form.title || "Role Title"}</h4>
+        <h4 className="text-[13px] font-bold mb-1 pr-16" style={{ color: "#0F1117" }}>{form.title || "Role Title"}</h4>
         <div className="flex flex-wrap gap-1 mb-2">
           {form.location && <span className="text-[10px]" style={{ color: "#9CA3AF" }}>{form.location}</span>}
           {form.stipend && <span className="text-[10px] font-semibold" style={{ color: "#4F46E5" }}>· {form.stipend}</span>}
@@ -107,7 +90,14 @@ function StudentCard({ form }: { form: any }) {
   );
 }
 
-export default function PostJobModal({ onClose }: Props) {
+function formatDeadline(iso: string): string {
+  if (!iso) return "Not set";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+export default function PostJobModal({ onClose, onCreate }: Props) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({ title: "", department: "", description: "", requiredSkills: [] as string[], preferredSkills: [] as string[], location: "", type: "Hybrid", duration: "", stipend: "", deadline: "" });
   const [published, setPublished] = useState(false);
@@ -119,7 +109,30 @@ export default function PostJobModal({ onClose }: Props) {
     else set("preferredSkills", form.preferredSkills.includes(skill) ? form.preferredSkills.filter(s => s !== skill) : [...form.preferredSkills, skill]);
   };
 
-  const publish = () => { setPublished(true); setTimeout(onClose, 1800); };
+  const canPublish = form.title.trim().length > 1;
+
+  const publish = () => {
+    if (!canPublish) return;
+    const job: Job = {
+      id: `j-${Date.now()}`,
+      title: form.title.trim(),
+      department: form.department || "General",
+      location: `${form.location || "Remote"}${form.type ? ` · ${form.type}` : ""}`,
+      type: form.duration || "Internship",
+      status: "Active",
+      applicants: 0,
+      selected: 0,
+      conversations: 0,
+      posted: "Just now",
+      deadline: formatDeadline(form.deadline),
+      requiredSkills: form.requiredSkills,
+      preferredSkills: form.preferredSkills,
+      description: form.description || "No description added yet.",
+      stipend: form.stipend || "Unpaid",
+    };
+    setPublished(true);
+    setTimeout(() => { onCreate?.(job); onClose(); }, 1400);
+  };
 
   const inputCls = "w-full px-4 py-3 rounded-xl text-[13px] outline-none transition-all duration-200";
   const inputSty = { background: "#F7F7FB", border: "1px solid #E8E8EF", color: "#0F1117" };
@@ -309,7 +322,7 @@ export default function PostJobModal({ onClose }: Props) {
                 Continue →
               </button>
             ) : (
-              <button onClick={publish} className="btn-press flex items-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white" style={{ background: "#16A34A", boxShadow: "0 4px 12px rgba(22,163,74,0.28)" }}>
+              <button onClick={publish} disabled={!canPublish} className="btn-press flex items-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white" style={{ background: "#16A34A", boxShadow: "0 4px 12px rgba(22,163,74,0.28)", opacity: canPublish ? 1 : 0.5, cursor: canPublish ? "pointer" : "not-allowed" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12l5 5L20 7"/></svg>
                 Publish Job
               </button>

@@ -2,10 +2,11 @@ node_modules/
 dist/
 build/
 .cache/
-.env
 .env.local
 .env.*.local
 !.env.example
+# .env is committed: it holds only the demo project's client-safe anon key,
+# so `npm run dev` works straight after a clone. Real deployments override it.
 .vite/
 vite.config.*.timestamp-*
 *.tsbuildinfo

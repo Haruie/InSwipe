@@ -1,6 +1,5 @@
 import { useState } from "react";
-import type { Candidate } from "../data/candidates";
-import type { JobPosting as Job } from "../data/jobs";
+import type { Candidate, Job } from "../data/mock";
 
 interface Props {
   candidate: Candidate;
@@ -83,8 +82,40 @@ function ResumePageMock({ candidate }: { candidate: Candidate }) {
   );
 }
 
+/** Build a standalone, printable HTML résumé from the candidate data and hand
+ *  the browser a real file to save. */
+function downloadResume(c: Candidate) {
+  const esc = (s: string) => s.replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m]!));
+  const section = (title: string, body: string) =>
+    `<h2 style="font:600 11px/1 Inter,Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;margin:22px 0 8px">${title}</h2>${body}`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(c.name)} — Résumé</title></head>
+<body style="font:13px/1.6 Inter,Arial,sans-serif;color:#374151;max-width:760px;margin:40px auto;padding:0 24px">
+  <div style="border-bottom:2px solid #0F1117;padding-bottom:14px">
+    <div style="font:700 22px Inter,Arial,sans-serif;color:#0F1117">${esc(c.name)}</div>
+    <div style="margin-top:4px;color:#6B7280">${esc(c.school)} · ${esc(c.degree)} · Class of ${esc(c.gradYear)}${c.gpa ? ` · GPA ${esc(c.gpa)}` : ""}</div>
+    <div style="margin-top:2px;color:#6B7280">${esc(c.location)}${c.githubUrl ? ` · ${esc(c.githubUrl)}` : ""}${c.portfolioUrl ? ` · ${esc(c.portfolioUrl)}` : ""}</div>
+  </div>
+  ${section("Skills", `<div>${[...c.fits, ...c.lacks].map(esc).join(" · ") || "—"}</div>`)}
+  ${c.experience.length ? section("Experience", c.experience.map((e) => `<div style="margin-bottom:12px"><strong style="color:#0F1117">${esc(e.role)}</strong> — ${esc(e.company)} <span style="color:#9CA3AF">(${esc(e.duration)})</span><div>${esc(e.description)}</div></div>`).join("")) : ""}
+  ${c.projects.length ? section("Projects", c.projects.map((p) => `<div style="margin-bottom:12px"><strong style="color:#0F1117">${esc(p.name)}</strong><div>${esc(p.description)}</div><div style="color:#4F46E5">${p.tech.map(esc).join(" · ")}</div></div>`).join("")) : ""}
+  ${section("Availability", `<div>${esc(c.availability)}${c.preferences.length ? ` · ${c.preferences.map(esc).join(" · ")}` : ""}</div>`)}
+  ${c.note ? section("Note to the team", `<div style="font-style:italic">"${esc(c.note)}"</div>`) : ""}
+</body></html>`;
+
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${c.name.replace(/\s+/g, "_")}_Resume.html`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export default function ResumeViewerModal({ candidate, job, onClose }: Props) {
   const [zoom, setZoom] = useState(100);
+  const [downloaded, setDownloaded] = useState(false);
   const fitsSet = new Set(candidate.fits);
   const lacksSet = new Set(candidate.lacks);
 
@@ -129,13 +160,16 @@ export default function ResumeViewerModal({ candidate, job, onClose }: Props) {
           </div>
           <div className="flex items-center gap-3">
             <button
-              disabled
-              title="Resumes are mock data in this prototype — there's no file to download"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border"
-              style={{ background: "#F7F7FB", borderColor: "#E8E8EF", color: "#9CA3AF", cursor: "not-allowed" }}
+              onClick={() => { downloadResume(candidate); setDownloaded(true); setTimeout(() => setDownloaded(false), 2500); }}
+              className="btn-press flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium border"
+              style={{ background: downloaded ? "#DCFCE7" : "#F7F7FB", borderColor: downloaded ? "#86EFAC" : "#E8E8EF", color: downloaded ? "#15803D" : "#374151", cursor: "pointer" }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Download
+              {downloaded ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              )}
+              {downloaded ? "Saved" : "Download"}
             </button>
             <button
               onClick={onClose}

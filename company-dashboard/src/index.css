@@ -130,6 +130,17 @@ html, body, #root {
 .anim-d6 { animation-delay: 0.30s; }
 .anim-d7 { animation-delay: 0.35s; }
 
+/* Never let an entrance animation leave content invisible for people who ask
+   for reduced motion (or environments where animations don't run). */
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-up, .anim-fade-in, .anim-slide-right, .anim-scale-spring,
+  .anim-success, .anim-lift-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 /* Shimmer skeleton — light mode */
 .shimmer-bg {
   background: linear-gradient(90deg, #F0F0F5 25%, #E8E8EF 50%, #F0F0F5 75%);

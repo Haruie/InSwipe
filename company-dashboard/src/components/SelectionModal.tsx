@@ -1,39 +1,24 @@
 import { useState } from "react";
-import type { Candidate } from "../data/candidates";
-import { useDashboard } from "../data/store";
+import type { Candidate } from "../data/mock";
+import { useAccount } from "../lib/account";
 import FitScoreRing from "./FitScoreRing";
-import CandidateAvatar from "./CandidateAvatar";
 
 interface Props {
   candidate: Candidate;
-  jobTitle: string;
-  companyName: string;
-  /**
-   * Selecting and sending the first message are one write, not two — the database
-   * creates the selection, the conversation and this message together. Passing no
-   * message means "use the default opener".
-   */
-  onConfirm: (message?: string) => void;
+  onConfirm: (message: string) => void;
   onCancel: () => void;
 }
 
-export default function SelectionModal({ candidate: c, jobTitle, companyName, onConfirm, onCancel }: Props) {
-  const { company } = useDashboard();
+export default function SelectionModal({ candidate: c, onConfirm, onCancel }: Props) {
+  const { account } = useAccount();
   const [step, setStep] = useState<"confirm" | "success" | "message">("confirm");
-  const [sending, setSending] = useState(false);
   const [message, setMessage] = useState(
-    `Hi ${c.name.split(" ")[0]}! Congratulations — you've been selected for the ${jobTitle} role at ${companyName}.\n\nWe were really impressed by your ${c.fits[0]} and ${c.fits[1]} work${c.projects[0] ? `, especially ${c.projects[0].name}` : ""}. I'd love to set up an intro call to walk you through the team and next steps.\n\nAre you available this week?`
+    `Hi ${c.name.split(" ")[0]}! Congratulations — you've been selected for the Frontend Engineering Intern role at ${account.company.name}.\n\nWe were really impressed by your ${c.fits[0]} and ${c.fits[1]} work${c.projects[0] ? `, especially ${c.projects[0].name}` : ""}. I'd love to set up an intro call to walk you through the team and next steps.\n\nAre you available this week?`
   );
 
   const handleConfirm = () => {
     setStep("success");
     setTimeout(() => setStep("message"), 2200);
-  };
-
-  const send = (body?: string) => {
-    if (sending) return;
-    setSending(true);
-    onConfirm(body);
   };
 
   return (
@@ -48,12 +33,12 @@ export default function SelectionModal({ candidate: c, jobTitle, companyName, on
           style={{ background: "#FFFFFF", border: "1px solid #E8E8EF", boxShadow: "0 8px 24px rgba(15,17,23,0.10)", maxHeight: "90vh" }}
         >
           <div className="text-center mb-6">
-            <div className="mx-auto mb-4 w-14">
-              <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={56} radius={16} fontSize={20} />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold mx-auto mb-4" style={{ background: c.avatarColor, color: "#4F46E5" }}>
+              {c.initials}
             </div>
             <h2 className="text-[18px] font-semibold mb-1" style={{ color: "#0F1117" }}>Select {c.name}?</h2>
             <p className="text-[13px] leading-relaxed" style={{ color: "#6B7280" }}>
-              You're about to select this candidate for the <strong style={{ color: "#374151" }}>{jobTitle}</strong> role. This unlocks their inbox, and you'll send them the first message next.
+              You're about to select this candidate for the <strong style={{ color: "#374151" }}>Frontend Engineering Intern</strong> role. You'll send them a message next.
             </p>
           </div>
 
@@ -84,7 +69,7 @@ export default function SelectionModal({ candidate: c, jobTitle, companyName, on
         <div className="flex flex-col items-center gap-6 text-center">
           <div className="relative flex items-center" style={{ gap: 48 }}>
             <div className="anim-success w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold text-white" style={{ background: "#4F46E5", boxShadow: "0 8px 24px rgba(79,70,229,0.28)", animationDelay: "0s" }}>
-              {company.initial}
+              T
             </div>
             <div className="anim-fade-in" style={{ animationDelay: "0.4s" }}>
               <svg width="48" height="8" viewBox="0 0 48 8">
@@ -96,8 +81,8 @@ export default function SelectionModal({ candidate: c, jobTitle, companyName, on
                 </defs>
               </svg>
             </div>
-            <div className="anim-success" style={{ boxShadow: "0 8px 24px rgba(79,70,229,0.15)", animationDelay: "0.2s", borderRadius: 16 }}>
-              <CandidateAvatar initials={c.initials} color={c.avatarColor} photoUrl={c.photoUrl} size={64} radius={16} fontSize={20} />
+            <div className="anim-success w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold" style={{ background: c.avatarColor, color: "#4F46E5", boxShadow: "0 8px 24px rgba(79,70,229,0.15)", animationDelay: "0.2s" }}>
+              {c.initials}
             </div>
           </div>
           <div className="anim-fade-up" style={{ animationDelay: "0.6s" }}>
@@ -127,7 +112,7 @@ export default function SelectionModal({ candidate: c, jobTitle, companyName, on
           <div className="rounded-2xl p-4 mb-4" style={{ background: "#F7F7FB", border: "1px solid #E8E8EF" }}>
             <div className="text-[12px] mb-2 flex items-center justify-between" style={{ color: "#9CA3AF" }}>
               <span>To: {c.name}</span>
-              <span>{jobTitle}</span>
+              <span>Frontend Engineering Intern</span>
             </div>
             <textarea
               value={message}
@@ -139,12 +124,11 @@ export default function SelectionModal({ candidate: c, jobTitle, companyName, on
           </div>
 
           <div className="flex gap-3">
-            <button onClick={() => send()} disabled={sending} className="btn-press px-5 py-3 rounded-xl text-[13px] font-medium border" style={{ background: "#F7F7FB", borderColor: "#E8E8EF", color: "#6B7280" }}>
-              Send default
+            <button onClick={() => onConfirm("")} className="btn-press px-5 py-3 rounded-xl text-[13px] font-medium border" style={{ background: "#F7F7FB", borderColor: "#E8E8EF", color: "#6B7280" }}>
+              Select, skip message
             </button>
             <button
-              onClick={() => send(message)}
-              disabled={sending}
+              onClick={() => onConfirm(message)}
               className="btn-press flex-1 py-3 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-2"
               style={{ background: "#4F46E5", boxShadow: "0 4px 12px rgba(79,70,229,0.28)" }}
             >

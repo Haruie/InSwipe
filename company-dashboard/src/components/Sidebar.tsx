@@ -1,5 +1,5 @@
 import type { Page } from "../App";
-import { useDashboard } from "../data/store";
+import { useAccount, initialsOf } from "../lib/account";
 
 const Icon = ({ path, size = 17 }: { path: string; size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -7,12 +7,12 @@ const Icon = ({ path, size = 17 }: { path: string; size?: number }) => (
   </svg>
 );
 
-const NAV: { id: Page; label: string; icon: string }[] = [
+const NAV: { id: Page; label: string; badge?: number; icon: string }[] = [
   { id: "dashboard",  label: "Dashboard",       icon: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10" },
   { id: "jobs",       label: "My Jobs",          icon: "M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" },
   { id: "applicants", label: "Applicants",       icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75" },
   { id: "pipeline",   label: "Pipeline",         icon: "M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" },
-  { id: "inbox",      label: "Inbox", icon: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6" },
+  { id: "inbox",      label: "Inbox", badge: 1,  icon: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6" },
   { id: "analytics",  label: "Analytics",        icon: "M18 20V10 M12 20V4 M6 20v-6" },
 ];
 
@@ -21,10 +21,11 @@ const BOTTOM: { id: Page; label: string; icon: string }[] = [
   { id: "settings", label: "Settings",        icon: "M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" },
 ];
 
-interface Props { currentPage: Page; onNavigate: (p: Page) => void; onOpenPostJob: () => void; inboxBadge: number; onLogout: () => void; }
+interface Props { currentPage: Page; onNavigate: (p: Page) => void; onOpenPostJob: () => void; }
 
-export default function Sidebar({ currentPage, onNavigate, onOpenPostJob, inboxBadge, onLogout }: Props) {
-  const { company, recruiter } = useDashboard();
+export default function Sidebar({ currentPage, onNavigate, onOpenPostJob }: Props) {
+  const { account } = useAccount();
+  const { company, user } = account;
   return (
     <aside
       className="flex flex-col w-[220px] flex-shrink-0"
@@ -33,13 +34,15 @@ export default function Sidebar({ currentPage, onNavigate, onOpenPostJob, inboxB
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-[18px]" style={{ borderBottom: "1px solid #E8E8EF" }}>
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-          style={{ background: "#4F46E5" }}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0 overflow-hidden"
+          style={{ background: company.logo ? "#FFFFFF" : "#4F46E5" }}
         >
-          {company.initial}
+          {company.logo
+            ? <img src={company.logo} alt={`${company.name} logo`} className="w-full h-full object-cover" />
+            : initialsOf(company.name)[0]}
         </div>
-        <div>
-          <div className="text-[13px] font-semibold leading-tight" style={{ color: "#0F1117" }}>TechNova</div>
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold leading-tight truncate" style={{ color: "#0F1117" }}>{company.name}</div>
           <div className="text-[12px]" style={{ color: "#6B7280" }}>Company</div>
         </div>
       </div>
@@ -82,12 +85,12 @@ export default function Sidebar({ currentPage, onNavigate, onOpenPostJob, inboxB
                 <Icon path={item.icon} />
               </span>
               {item.label}
-              {item.id === "inbox" && inboxBadge > 0 && (
+              {item.badge && (
                 <span
                   className="ml-auto text-[11px] font-bold w-5 h-5 rounded-full flex items-center justify-center text-white"
                   style={{ background: "#4F46E5" }}
                 >
-                  {inboxBadge}
+                  {item.badge}
                 </span>
               )}
             </button>
@@ -115,24 +118,17 @@ export default function Sidebar({ currentPage, onNavigate, onOpenPostJob, inboxB
         {/* Recruiter */}
         <div className="flex items-center gap-3 px-3 py-2.5 mt-1 rounded-[10px]" style={{ background: "#F7F7FB" }}>
           <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 overflow-hidden"
             style={{ background: "#4F46E5" }}
           >
-            {recruiter?.initials ?? "—"}
+            {user.picture
+              ? <img src={user.picture} alt={user.name} className="w-full h-full object-cover" />
+              : initialsOf(user.name)}
           </div>
           <div className="min-w-0">
-            <div className="text-[12px] font-medium truncate" style={{ color: "#0F1117" }}>{recruiter?.name ?? "—"}</div>
-            <div className="text-[12px] truncate" style={{ color: "#9CA3AF" }}>{recruiter?.role ?? ""}</div>
+            <div className="text-[12px] font-medium truncate" style={{ color: "#0F1117" }}>{user.name}</div>
+            <div className="text-[12px] truncate" style={{ color: "#9CA3AF" }}>{user.role}</div>
           </div>
-          <button
-            onClick={onLogout}
-            title="Sign out"
-            aria-label="Sign out"
-            className="btn-press ml-auto p-1.5 rounded-lg flex-shrink-0"
-            style={{ color: "#6B7280" }}
-          >
-            <Icon path="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4 M16 17l5-5-5-5 M21 12H9" size={16} />
-          </button>
         </div>
       </div>
     </aside>

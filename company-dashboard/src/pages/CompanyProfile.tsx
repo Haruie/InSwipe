@@ -1,29 +1,6 @@
 import { useState } from "react";
-import type { Company } from "@inswipe/core";
-import { useDashboard } from "../data/store";
-
-interface Details {
-  description: string;
-  website: string;
-  linkedin: string;
-  founded: string;
-  stage: string;
-  industry: string;
-  size: string;
-  location: string;
-}
-
-/** Seeded from the company row; the fields Supabase does not carry stay editable here. */
-const detailsFrom = (company: Company): Details => ({
-  description: company.about,
-  website: company.website,
-  linkedin: `linkedin.com/company/${company.id}`,
-  founded: `${company.founded}, ${company.location}`,
-  stage: "Series B",
-  industry: company.industry,
-  size: company.size,
-  location: company.location,
-});
+import { useAccount, initialsOf, type CompanyInfo } from "../lib/account";
+import LogoUpload from "../components/LogoUpload";
 
 const inputSty = { background: "#F7F7FB", border: "1.5px solid #E8E8EF", borderRadius: 10, padding: "9px 12px", fontSize: 13, color: "#0F1117", width: "100%", boxSizing: "border-box" as const };
 
@@ -41,22 +18,22 @@ function Field({ label, value, onChange, multiline }: { label: string; value: st
 }
 
 export default function CompanyProfile() {
-  const { company } = useDashboard();
+  const { account, updateCompany, setLogo } = useAccount();
+  const { company } = account;
 
   const [editing, setEditing] = useState(false);
-  const [details, setDetails] = useState<Details>(() => detailsFrom(company));
-  const [draft, setDraft] = useState<Details>(() => detailsFrom(company));
+  const [draft, setDraft] = useState<CompanyInfo>(company);
   const [justSaved, setJustSaved] = useState(false);
 
-  const startEditing = () => { setDraft(details); setEditing(true); };
+  const startEditing = () => { setDraft(company); setEditing(true); };
   const saveChanges = () => {
-    setDetails(draft);
+    updateCompany(draft);
     setEditing(false);
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 2200);
   };
-  const cancelEditing = () => { setDraft(details); setEditing(false); };
-  const set = (k: keyof Details) => (v: string) => setDraft(d => ({ ...d, [k]: v }));
+  const cancelEditing = () => { setDraft(company); setEditing(false); };
+  const set = (k: keyof CompanyInfo) => (v: string) => setDraft(d => ({ ...d, [k]: v }));
 
   return (
     <div className="p-8 max-w-[800px] mx-auto space-y-6">
@@ -90,9 +67,26 @@ export default function CompanyProfile() {
 
       <div className="rounded-[20px] border p-6 anim-fade-up" style={{ background: "#FFFFFF", borderColor: "#E8E8EF", boxShadow: "0 1px 3px rgba(15,17,23,0.06)" }}>
         <div className="flex items-start gap-6">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white flex-shrink-0" style={{ background: "#4F46E5" }}>T</div>
+          {editing ? (
+            <LogoUpload
+              value={draft.logo}
+              onChange={(url) => { setDraft(d => ({ ...d, logo: url })); setLogo(url); }}
+              fallbackInitial={initialsOf(draft.name)[0]}
+              variant="inline"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white flex-shrink-0 overflow-hidden" style={{ background: company.logo ? "#FFFFFF" : "#4F46E5" }}>
+              {company.logo
+                ? <img src={company.logo} alt={`${company.name} logo`} className="w-full h-full object-cover" />
+                : initialsOf(company.name)[0]}
+            </div>
+          )}
           <div className="flex-1 space-y-3">
-            <div className="text-[18px] font-semibold" style={{ color: "#0F1117" }}>{company.name}</div>
+            {editing ? (
+              <Field label="Company name" value={draft.name} onChange={set("name")} />
+            ) : (
+              <div className="text-[18px] font-semibold" style={{ color: "#0F1117" }}>{company.name}</div>
+            )}
             {editing ? (
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Industry" value={draft.industry} onChange={set("industry")} />
@@ -100,12 +94,12 @@ export default function CompanyProfile() {
                 <Field label="Location" value={draft.location} onChange={set("location")} />
               </div>
             ) : (
-              <div className="text-[13px]" style={{ color: "#374151" }}>{details.industry} · {details.size} · {details.location}</div>
+              <div className="text-[13px]" style={{ color: "#374151" }}>{company.industry} · {company.size} · {company.location}</div>
             )}
             {editing ? (
               <Field label="Description" value={draft.description} onChange={set("description")} multiline />
             ) : (
-              <p className="text-[13px] leading-relaxed" style={{ color: "#6B7280" }}>{details.description}</p>
+              <p className="text-[13px] leading-relaxed" style={{ color: "#6B7280" }}>{company.description}</p>
             )}
           </div>
         </div>
@@ -117,14 +111,14 @@ export default function CompanyProfile() {
           { key: "linkedin", label: "LinkedIn" },
           { key: "founded", label: "Founded" },
           { key: "stage", label: "Stage" },
-        ] as { key: keyof Details; label: string }[]).map(item => (
+        ] as { key: keyof CompanyInfo; label: string }[]).map(item => (
           <div key={item.key} className="rounded-xl border p-4" style={{ background: "#FFFFFF", borderColor: "#E8E8EF", boxShadow: "0 1px 3px rgba(15,17,23,0.06)" }}>
             {editing ? (
-              <Field label={item.label} value={draft[item.key]} onChange={set(item.key)} />
+              <Field label={item.label} value={String(draft[item.key] ?? "")} onChange={set(item.key)} />
             ) : (
               <>
                 <div className="text-[12px] mb-1" style={{ color: "#9CA3AF" }}>{item.label}</div>
-                <div className="text-[13px] font-medium" style={{ color: "#0F1117" }}>{details[item.key]}</div>
+                <div className="text-[13px] font-medium" style={{ color: "#0F1117" }}>{String(company[item.key] ?? "—")}</div>
               </>
             )}
           </div>

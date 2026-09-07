@@ -12,6 +12,10 @@ build/
 .env
 .env.local
 .env.*.local
+# ...except the two apps' .env: they hold only the demo Supabase project's
+# publishable anon key (client-safe by design) so a fresh clone runs with no setup.
+!company-dashboard/.env
+!student-app/.env
 
 # editor / os
 .vscode/
