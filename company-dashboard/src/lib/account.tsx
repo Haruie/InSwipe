@@ -283,7 +283,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   // createOrg is idempotent — it creates the org the first time and updates the
   // company on later calls. Debounced so a burst of edits is one request.
   useEffect(() => {
-    if (!account.orgId || account.membership !== "owner" || !account.onboarded) return;
+    if (!account.orgId || account.membership !== "owner") return;
     const t = setTimeout(() => {
       void createOrg({
         orgId: account.orgId!,
@@ -292,7 +292,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       }).catch(() => {});
     }, 400);
     return () => clearTimeout(t);
-  }, [account.orgId, account.membership, account.onboarded, account.company, account.user.name, account.user.email]);
+  }, [account.orgId, account.membership, account.company, account.user.name, account.user.email]);
 
   // Anyone in an org polls it: the owner sees "Pending" flip to "Active" when an
   // invitee accepts; a member sees company + team edits the owner makes.
@@ -446,44 +446,42 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
       inviteMember: async ({ name, email, role }) => {
         const a = accountRef.current;
-        if (a.orgId && a.membership === "owner") {
-          try {
-            const res = await inviteToOrg({
-              orgId: a.orgId,
-              toEmail: email.trim(),
-              toName: name.trim(),
-              role,
-              inviterName: a.user.name,
-              appUrl: window.location.origin,
-            });
-            setAccount((prev) => ({
-              ...prev,
-              team: res.members.filter((m) => m.id !== prev.memberId).map(toTeamMember),
-            }));
-            return { ok: true, emailed: res.emailed, inviteLink: res.inviteLink };
-          } catch (e) {
-            return { ok: false, error: (e as Error).message };
-          }
+        if (a.membership !== "owner") {
+          return { ok: false, error: "Only an admin can invite teammates." };
         }
-        // Local-only fallback (no org yet).
-        setAccount((prev) => {
-          const rest = prev.team.filter((m) => m.email.toLowerCase() !== email.trim().toLowerCase());
-          return {
+        try {
+          // Someone who signed straight into the demo has no shared org yet — create
+          // one on Supabase now, so the invite is real rather than a local placeholder.
+          let orgId = a.orgId;
+          if (!orgId) {
+            orgId = randId();
+            await createOrg({
+              orgId,
+              company: a.company,
+              owner: { name: a.user.name, email: a.user.email },
+            });
+            setAccount((prev) => ({ ...prev, orgId, membership: "owner", memberId: "m-owner" }));
+          }
+
+          const res = await inviteToOrg({
+            orgId,
+            toEmail: email.trim(),
+            toName: name.trim(),
+            role,
+            inviterName: a.user.name,
+            appUrl: window.location.origin,
+          });
+          setAccount((prev) => ({
             ...prev,
-            team: [
-              ...rest,
-              {
-                id: `tm-${Date.now()}`,
-                name: name.trim(),
-                email: email.trim(),
-                role,
-                status: "Pending",
-                invitedAt: new Date().toISOString(),
-              },
-            ],
-          };
-        });
-        return { ok: true, emailed: false };
+            orgId,
+            membership: "owner",
+            memberId: prev.memberId ?? "m-owner",
+            team: res.members.filter((m) => m.id !== (prev.memberId ?? "m-owner")).map(toTeamMember),
+          }));
+          return { ok: true, emailed: res.emailed, inviteLink: res.inviteLink };
+        } catch (e) {
+          return { ok: false, error: (e as Error).message };
+        }
       },
 
       updateMember: (id, patch) => {
