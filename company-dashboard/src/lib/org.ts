@@ -5,9 +5,10 @@ import type { CompanyInfo, TeamRole } from "./account";
  * The shared hiring team (organization + members + invites), on Supabase.
  *
  * Every write is one of the security-definer RPCs in
- * supabase/migrations/0005_org_and_team.sql. The 6-digit invite code is e-mailed
- * by the send-code Edge Function; with no email provider configured the code is
- * returned in `devCode` and the accept screen shows it, so the flow still works.
+ * supabase/migrations/0005_org_and_team.sql. The join link is e-mailed straight
+ * to the invitee by the send-code Edge Function, and the accept screen then
+ * e-mails a 6-digit code to confirm the address; with no email provider
+ * configured the copy-me link and the on-screen code keep the flow working.
  */
 
 export interface OrgMember {
@@ -62,10 +63,15 @@ function unwrap<T>(res: { data: T | null; error: { message: string } | null }, w
   return res.data;
 }
 
-/** Deliver a code via the send-code function; false (with the code) if it is not set up. */
-async function emailCode(input: {
+/**
+ * Deliver something through the send-code function: a 6-digit `code`, an invite
+ * `link`, or both. Returns false (so the caller can fall back to showing it) if
+ * the function is not set up or the send failed.
+ */
+async function sendCodeEmail(input: {
   to: string;
-  code: string;
+  code?: string;
+  link?: string;
   kind: "invite" | "verify";
   context?: string;
   inviter?: string;
@@ -152,7 +158,18 @@ export async function inviteToOrg(input: {
   ) as { token: string; memberId: string; snapshot: OrgSnapshot };
 
   const inviteLink = `${input.appUrl}${input.appUrl.includes("?") ? "&" : "?"}invite=${res.token}`;
-  return { ...res.snapshot, sentTo: input.toEmail, emailed: false, inviteLink };
+
+  // E-mail the join link straight to the invitee. If the mailer isn't set up the
+  // send fails quietly and the caller shows the copy-me link instead.
+  const emailed = await sendCodeEmail({
+    to: input.toEmail,
+    link: inviteLink,
+    kind: "invite",
+    context: res.snapshot.company?.name,
+    inviter: input.inviterName,
+  });
+
+  return { ...res.snapshot, sentTo: input.toEmail, emailed, inviteLink };
 }
 
 export async function setOrgMemberRole(orgId: string, memberId: string, role: TeamRole): Promise<OrgSnapshot> {
@@ -179,7 +196,7 @@ export async function challengeInvite(token: string): Promise<ChallengeResult> {
     sentTo: string;
     code: string;
   };
-  const emailed = await emailCode({ to: res.sentTo, code: res.code, kind: "invite" });
+  const emailed = await sendCodeEmail({ to: res.sentTo, code: res.code, kind: "invite" });
   return { ok: true, sentTo: res.sentTo, emailed, devCode: emailed ? undefined : res.code };
 }
 
