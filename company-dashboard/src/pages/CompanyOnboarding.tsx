@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { isGoogleConfigured, preloadGoogle, signInWithGoogle } from "../lib/google";
 
 interface Props {
   onComplete: () => void;
   onBack: () => void;
+}
+
+/** "anjali@technova.in" -> "Technova" — a reasonable company-name guess from a work email. */
+function companyFromEmail(email: string): string {
+  const domain = email.split("@")[1]?.split(".")[0] ?? "";
+  return domain ? domain.charAt(0).toUpperCase() + domain.slice(1) : "";
 }
 
 type Screen = "signup" | "step1" | "step3";
@@ -61,6 +68,44 @@ interface SignupProps {
 }
 
 function SignupScreen({ email, setEmail, company, setCompany, password, setPassword, showPassword, setShowPassword, onNext, onSignIn }: SignupProps) {
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+
+  // Warm up Google Identity Services so the click below opens the popup within the user
+  // gesture — an await before requestAccessToken() gets the popup blocked.
+  useEffect(() => { preloadGoogle(); }, []);
+
+  /**
+   * Real Google sign-in when VITE_GOOGLE_CLIENT_ID is set: opens Google's own account
+   * chooser and prefills the form from the chosen account. With no client ID configured
+   * it runs a brief simulated connect so the demo still works.
+   */
+  const handleGoogle = async () => {
+    if (googleLoading) return;
+    setGoogleError(null);
+    setGoogleLoading(true);
+
+    if (!isGoogleConfigured()) {
+      setTimeout(() => {
+        setEmail("anjali@technova.in");
+        setCompany("TechNova");
+        onNext();
+      }, 700);
+      return;
+    }
+
+    try {
+      const profile = await signInWithGoogle();
+      if (profile.email) setEmail(profile.email);
+      const guess = companyFromEmail(profile.email);
+      if (guess) setCompany(guess);
+      onNext();
+    } catch (e) {
+      setGoogleError((e as Error).message || "Google sign-in didn't complete.");
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       {/* Left: form */}
@@ -75,15 +120,20 @@ function SignupScreen({ email, setEmail, company, setCompany, password, setPassw
         <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 36 }}>Start hiring your next great intern in minutes.</p>
 
         {/* Google SSO */}
-        <button onClick={onNext} className="btn-outline" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "#fff", border: "1.5px solid #E8E8EF", borderRadius: 10, padding: "12px 20px", fontSize: 14, fontWeight: 600, color: "#374151", cursor: "pointer", marginBottom: 20, transition: "background 0.15s" }}>
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
-            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853" />
-            <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
-            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335" />
-          </svg>
-          Continue with Google
+        <button onClick={handleGoogle} disabled={googleLoading} className="btn-outline" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "#fff", border: "1.5px solid #E8E8EF", borderRadius: 10, padding: "12px 20px", fontSize: 14, fontWeight: 600, color: googleLoading ? "#9CA3AF" : "#374151", cursor: googleLoading ? "default" : "pointer", marginBottom: googleError ? 8 : 20, transition: "background 0.15s" }}>
+          {googleLoading ? (
+            <span className="spinner" style={{ width: 16, height: 16, border: "2px solid #E8E8EF", borderTopColor: "#4F46E5", borderRadius: "50%", display: "inline-block" }} />
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
+              <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853" />
+              <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
+              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335" />
+            </svg>
+          )}
+          {googleLoading ? "Connecting to Google…" : "Continue with Google"}
         </button>
+        {googleError && <p style={{ fontSize: 12, color: "#DC2626", marginBottom: 16, lineHeight: 1.5 }}>{googleError}</p>}
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <div style={{ flex: 1, height: 1, background: "#E8E8EF" }} />
