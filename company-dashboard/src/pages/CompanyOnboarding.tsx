@@ -430,7 +430,7 @@ function Step3Screen({ email, company, onVerified, onBack }: Step3Props) {
     setStatus("sent");
     setMessage(
       res.devCode
-        ? "No mail server is configured, so the code is shown below (and in the sync-server console)."
+        ? "We couldn't email this address, so the code is shown below."
         : `We sent a 6-digit code to ${res.sentTo}. Check your inbox and spam folder.`,
     );
   };

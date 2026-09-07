@@ -17,10 +17,11 @@ import {
  * The one place the signed-in company + user live for the whole dashboard.
  *
  * Single-user data (company details, your profile) is kept in localStorage.
- * When an account has an `orgId`, the company + team are also mirrored on the
- * local sync server so an invited teammate on another device/tab can accept a
- * link and see the same company and the same team list. The owner's browser is
- * the source of truth; a member's browser reads the org back and polls it.
+ * When an account has an `orgId`, the company + team are also mirrored on
+ * Supabase (see lib/org.ts and supabase/migrations/0005_org_and_team.sql) so an
+ * invited teammate on another device/tab can accept a link and see the same
+ * company and the same team list. The owner's browser is the source of truth;
+ * a member's browser reads the org back and polls it.
  */
 
 export interface CompanyInfo {
@@ -83,7 +84,7 @@ export interface Account {
   settings: AppSettings;
   /** false until the user finishes signup — the seed is a "logged-in TechNova" demo default. */
   onboarded: boolean;
-  /** Set once the org is mirrored on the sync server; null for the local-only seed. */
+  /** Set once the org is mirrored on Supabase; null for the local-only seed. */
   orgId: string | null;
   membership: "owner" | "member";
   /** This browser's row in the org (m-owner for the owner). */

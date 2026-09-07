@@ -29,14 +29,14 @@ export default function AcceptInvite() {
     const res = await sendInviteCode();
     if (!res.ok) {
       setPhase("idle");
-      setError("Couldn't send the code. Is the sync server running?");
+      setError("Couldn't send the code. Try again in a moment.");
       return;
     }
     setDevCode(res.devCode ?? null);
     setPhase("sent");
     setNote(
       res.devCode
-        ? "No mail server is configured — the code is shown below."
+        ? "We couldn't email this address, so the code is shown below."
         : `We emailed a 6-digit code to ${res.sentTo}. Check inbox and spam.`,
     );
   };

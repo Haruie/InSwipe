@@ -34,7 +34,7 @@ export interface Candidate {
   resumeFile: string;
   githubUrl?: string;
   portfolioUrl?: string;
-  /** Built from a real application via the local sync server, not one of the static mocks below. */
+  /** Built from a real Supabase application row. */
   isLive?: boolean;
 }
 
