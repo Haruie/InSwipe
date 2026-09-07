@@ -3,6 +3,7 @@ import { useAccount, domainOf, type CompanyInfo } from "../lib/account";
 import { isGoogleConfigured, signInWithGoogle, preloadGoogle, type GoogleProfile } from "../lib/google";
 import { startDomainVerification, checkDomainVerification } from "../lib/verify";
 import LogoUpload from "../components/LogoUpload";
+import { Logo } from "../components/Brand";
 
 interface Props {
   onComplete: () => void;
@@ -181,9 +182,8 @@ function SignupScreen({ email, setEmail, company, setCompany, password, setPassw
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "80px 72px", background: "#fff", maxWidth: 600 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 48 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: "#4F46E5", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 15 }}>IS</div>
-          <span style={{ fontWeight: 700, fontSize: 18, color: "#0F1117" }}>InSwipe</span>
+        <div style={{ marginBottom: 48 }}>
+          <Logo size={36} />
         </div>
 
         <h1 style={{ fontSize: 30, fontWeight: 800, color: "#0F1117", letterSpacing: -0.8, marginBottom: 8 }}>Create your company account</h1>
@@ -556,9 +556,8 @@ function ProgressRail({ currentStep }: { currentStep: number }) {
 
   return (
     <div style={{ width: 280, background: "#fff", borderRight: "1px solid #E8E8EF", padding: "72px 32px", display: "flex", flexDirection: "column", gap: 0, flexShrink: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 56 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: "#4F46E5", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13 }}>IS</div>
-        <span style={{ fontWeight: 700, fontSize: 16, color: "#0F1117" }}>InSwipe</span>
+      <div style={{ marginBottom: 56 }}>
+        <Logo size={32} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column" }}>
